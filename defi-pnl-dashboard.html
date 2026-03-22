@@ -361,16 +361,6 @@ async function getTransfers(address, direction) {
   return results;
 }
 
-// eth_call — call convertToAssets on vault contracts
-async function convertToAssets(vaultAddr, sharesHex) {
-  // convertToAssets(uint256) selector = 0x07a2d13a
-  const sharesBI = BigInt(sharesHex);
-  const sharesHexPadded = sharesBI.toString(16).padStart(64, '0');
-  const data = '0x07a2d13a' + sharesHexPadded;
-  const result = await alchemyRpc('eth_call', [{ to: vaultAddr, data }, 'latest']);
-  return result ? BigInt(result) : null;
-}
-
 // Get ETH balance
 async function getEthBalance(address) {
   const r = await alchemyRpc('eth_getBalance', [address, 'latest']);
@@ -494,31 +484,39 @@ function mergeTransfers(address, txsFrom, txsTo) {
   return all.sort((a, b) => new Date(b.metadata?.blockTimestamp || 0) - new Date(a.metadata?.blockTimestamp || 0));
 }
 
-// ── Detect open vault positions ───────────────────────────────────────────────
+// ── Detect open vault positions via direct eth_call ───────────────────────────
+// Uses balanceOf() to get current shares, then convertToAssets() for USD value.
+// This is reliable regardless of how old the deposit was.
 async function detectVaultPositions(address, transfers, prices, ethPrice) {
   const wallet = address.toLowerCase();
   const vaultPositions = [];
 
   for (const [vaultAddr, vMeta] of Object.entries(VAULTS)) {
-    // Calculate net shares: received - sent
-    let netShares = BigInt(0);
-    for (const t of transfers) {
-      if ((t.contractAddress || '').toLowerCase() !== vaultAddr) continue;
-      const rawVal = t.rawContract?.value ? BigInt(t.rawContract.value) : BigInt(Math.round((t.value || 0) * 10**18));
-      if ((t.to || '').toLowerCase() === wallet) netShares += rawVal;
-      else if ((t.from || '').toLowerCase() === wallet) netShares -= rawVal;
-    }
-    if (netShares <= BigInt(0)) continue;
+    // 1. Get current share balance via balanceOf(address)
+    //    balanceOf(address) selector = 0x70a08231
+    const addrPadded = wallet.replace('0x','').padStart(64,'0');
+    const balData = '0x70a08231' + addrPadded;
+    let sharesRaw;
+    try {
+      const balResult = await alchemyRpc('eth_call', [{ to: vaultAddr, data: balData }, 'latest']);
+      if (!balResult || balResult === '0x') continue;
+      sharesRaw = BigInt(balResult);
+      if (sharesRaw === BigInt(0)) continue;
+    } catch (e) { continue; }
 
-    // Call convertToAssets to get current USD value
+    // 2. Get current USD value via convertToAssets(shares)
+    //    convertToAssets(uint256) selector = 0x07a2d13a
     let currentUSD = null;
     try {
-      const sharesHex = '0x' + netShares.toString(16);
-      const assets = await convertToAssets(vaultAddr, sharesHex);
-      if (assets !== null) currentUSD = Number(assets) / 10**vMeta.decimals;
+      const sharesHex = sharesRaw.toString(16).padStart(64, '0');
+      const callData = '0x07a2d13a' + sharesHex;
+      const assetsResult = await alchemyRpc('eth_call', [{ to: vaultAddr, data: callData }, 'latest']);
+      if (assetsResult && assetsResult !== '0x') {
+        currentUSD = Number(BigInt(assetsResult)) / 10 ** vMeta.decimals;
+      }
     } catch (e) {}
 
-    // Fallback: use net received USDC as deposit estimate
+    // 3. Find deposited amount from USDC transfers to vault in transfer history
     let deposited = 0;
     for (const t of transfers) {
       const isUsdc = (t.asset || '').toUpperCase() === 'USDC';
@@ -531,7 +529,7 @@ async function detectVaultPositions(address, transfers, prices, ethPrice) {
       addr: vaultAddr,
       name: vMeta.name,
       type: vMeta.type,
-      netShares,
+      sharesRaw,
       currentUSD,
       deposited,
       yield: currentUSD !== null ? currentUSD - deposited : null,
@@ -627,10 +625,14 @@ function build(address, transfers, ethBal, ethPrice, prices, vaultPositions) {
     txCount: s.txs.length,
   })).filter(s => Math.abs(s.net) > 0.01 || s.txCount > 0).sort((a, b) => b.net - a.net);
 
-  // Total capital
+  // Total capital:
+  // - vault positions: use convertToAssets value (live, accurate)
+  // - ETH balance
+  // - other ERC-20 net holdings (excluding vault share tokens — they're already counted above)
   const vaultAddrs = new Set(Object.keys(VAULTS));
   let cap = ethBal * ethPrice;
-  // Add non-vault ERC-20 holdings (net positive balances)
+  for (const v of vaultPositions) { if (v.currentUSD) cap += v.currentUSD; }
+  // Add non-vault token net balances
   const tokenBals = {};
   for (const t of txs) {
     if (!t.contractAddress || vaultAddrs.has(t.contractAddress)) continue;
@@ -638,9 +640,8 @@ function build(address, transfers, ethBal, ethPrice, prices, vaultPositions) {
     tokenBals[t.sym].net += t.isIn ? t.amount : t.isOut ? -t.amount : 0;
   }
   for (const tb of Object.values(tokenBals)) {
-    if (tb.net > 0) cap += tb.net * tb.price;
+    if (tb.net > 0 && tb.price > 0) cap += tb.net * tb.price;
   }
-  for (const v of vaultPositions) { if (v.currentUSD) cap += v.currentUSD; }
 
   const totalPnl = [...current, ...past].reduce((s, x) => s + x.net, 0);
   const totalGas = 0; // alchemy_getAssetTransfers doesn't include gas data
