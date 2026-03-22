@@ -210,9 +210,9 @@ td{padding:11px 1.2rem;vertical-align:middle}
 <div class="ctn">
   <div class="sg">
     <div class="sc"><div class="sl">Total capital now</div><div class="sv" id="d-cap">—</div><div class="ss" id="d-caps"></div></div>
-    <div class="sc"><div class="sl">Net P&L</div><div class="sv g" id="d-pnl">—</div><div class="ss" id="d-pnls"></div></div>
-    <div class="sc"><div class="sl">Unrealised P&L</div><div class="sv g" id="d-unr">—</div><div class="ss">open vault positions</div></div>
-    <div class="sc"><div class="sl">Gas paid</div><div class="sv" id="d-gas" style="font-size:1.3rem;margin-top:6px">—</div><div class="ss" id="d-gass"></div></div>
+    <div class="sc"><div class="sl">Net P&L</div><div class="sv g" id="d-pnl">—</div><div class="ss">capital now − deposited</div></div>
+    <div class="sc"><div class="sl">Capital deposited</div><div class="sv" id="d-dep">—</div><div class="ss" id="d-deps">net external USDC in</div></div>
+    <div class="sc"><div class="sl">Gas paid (30d)</div><div class="sv" id="d-gas" style="font-size:1.3rem;margin-top:6px">—</div><div class="ss" id="d-gass"></div></div>
   </div>
   <div class="wbar">
     <div style="display:flex;align-items:center;gap:10px"><span class="dot"></span><span class="wa" id="d-addr"></span></div>
@@ -486,16 +486,21 @@ async function run(address) {
     const vaultPositions = await detectVaultPositions(address, allTransfers, prices, ethPrice);
     setPf(75);
 
-    setSub('Fetching gas costs…');
+    setSub('Fetching gas costs (last 30 days)…');
     const wallet = address.toLowerCase();
-    const senderHashes = [...new Set(
-      allTransfers.filter(t => (t.from || '').toLowerCase() === wallet).map(t => t.hash)
+    const thirtyDaysAgo = Date.now() - 30 * 86400000;
+    // Only fetch gas for txs in last 30 days — older gas is negligible and saves API calls
+    const recentSenderHashes = [...new Set(
+      allTransfers
+        .filter(t => (t.from || '').toLowerCase() === wallet)
+        .filter(t => new Date(t.metadata?.blockTimestamp || 0).getTime() >= thirtyDaysAgo)
+        .map(t => t.hash)
     )];
-    const gasMap = await getGasForTxs(senderHashes, ethPrice);
+    const gasMap = await getGasForTxs(recentSenderHashes, ethPrice);
     setPf(90);
 
     setSub('Building dashboard…');
-    const result = build(address, allTransfers, ethBal, ethPrice, prices, vaultPositions, gasMap);
+    const result = build(address, allTransfers, ethBal, ethPrice, prices, vaultPositions, gasMap, thirtyDaysAgo);
     allTxs = result.txs;
     setPf(100);
 
@@ -579,47 +584,65 @@ async function detectVaultPositions(address, transfers, prices, ethPrice) {
 }
 
 // ── Build dashboard data ──────────────────────────────────────────────────────
-function build(address, transfers, ethBal, ethPrice, prices, vaultPositions, gasMap) {
+// Net P&L = Total capital now - Net external capital deposited
+//
+// "External capital" = USDC received from non-DeFi addresses (e.g. Gnosis Safe top-ups)
+//                    - USDC sent back to non-DeFi addresses (e.g. returning funds)
+//
+// This answers: "how much profit above what I put in am I sitting on?"
+//
+// Gas = only last 30 days (receipts only fetched for recent txs)
+// Past strategies = all history since wallet creation (fromBlock 0x0)
+function build(address, transfers, ethBal, ethPrice, prices, vaultPositions, gasMap, thirtyDaysAgo) {
   const wallet = address.toLowerCase();
   const vaultAddrs = new Set(Object.keys(VAULTS));
 
-  // ── Process transfers into display rows ──
+  // All DeFi-related addresses — outflows to these are "deployed to DeFi", not "external"
+  // inflows from these are "DeFi returns", not "new capital"
+  const defiAddrs = new Set([
+    ...Object.keys(PROTO),
+    '0x98c23e9d8f34fefb1b7bd6a91b7ff122f4e16f5c', // aUSDC (Aave V3 yield token)
+    '0x68215b6533c47ff9f7125ac95adf00fe4a62f79e', // aHorRwaUSDC (Aave Horizon yield token)
+    '0x00000688768803bbd44095770895ad27ad6b0d95', // 1inch limit order filler
+    '0x4a6c312ec70e8747a587ee860a0353cd42be0ae0', // Morpho vault pool
+  ]);
+
+  // ── Enrich transfers ─────────────────────────────────────────────────────────
   const txs = transfers.map(t => {
     const isOut = (t.from || '').toLowerCase() === wallet;
     const isIn  = (t.to   || '').toLowerCase() === wallet;
     const date  = (t.metadata?.blockTimestamp || '').slice(0, 10);
+    const ts    = new Date(t.metadata?.blockTimestamp || 0).getTime();
     const sym   = t.asset || '?';
     const amount = t.value || 0;
     const addr  = (t.contractAddress || '').toLowerCase();
     const price = addr ? (prices[addr] || 0) : ethPrice;
     const usd   = amount * price;
-    const toL   = (t.to   || '').toLowerCase();
+    const toL   = (t.to || '').toLowerCase();
     const fromL = (t.from || '').toLowerCase();
     const proto = PROTO[toL] || PROTO[fromL] || null;
     const gasUSD = isOut ? (gasMap[(t.hash || '').toLowerCase()] || 0) : 0;
-
     let type = 'transfer';
     if (vaultAddrs.has(toL) && isOut) type = 'deposit';
     else if (vaultAddrs.has(fromL) && isIn) type = 'withdraw';
     else if (t.category === 'external' || t.category === 'internal') type = 'eth';
-
-    return { hash: t.hash, date, type, sym, amount, usd, price,
-             contractAddress: addr, from: t.from || '', to: t.to || '',
-             isOut, isIn, gasUSD,
+    return { hash: t.hash, date, ts, type, sym, amount, usd, price,
+             contractAddress: addr, from: t.from||'', to: t.to||'',
+             isOut, isIn, gasUSD, toL, fromL,
              proto: proto || (isOut ? shortAddr(t.to) : shortAddr(t.from)) };
   });
 
-  // ── Total gas (deduplicated by tx hash) ──
-  const seenHashes = new Set();
+  // ── Gas: last 30 days only ───────────────────────────────────────────────────
+  const seenGasHashes = new Set();
   let totalGas = 0;
   for (const t of txs) {
-    if (t.isOut && t.gasUSD > 0 && !seenHashes.has(t.hash)) {
+    if (t.isOut && t.gasUSD > 0 && !seenGasHashes.has(t.hash) && t.ts >= thirtyDaysAgo) {
       totalGas += t.gasUSD;
-      seenHashes.add(t.hash);
+      seenGasHashes.add(t.hash);
     }
   }
 
-  // ── Token flow map ──
+  // ── Token flows tab ──────────────────────────────────────────────────────────
   const fmap = {};
   for (const t of txs) {
     if (vaultAddrs.has(t.contractAddress)) continue;
@@ -627,90 +650,94 @@ function build(address, transfers, ethBal, ethPrice, prices, vaultPositions, gas
     fmap[t.sym].net += t.isIn ? t.usd : t.isOut ? -t.usd : 0;
   }
 
-  // ── Current (open) strategies ──
-  // Morpho/1inch reward addresses
+  // ── Past strategies: all-time USDC deployed then returned ────────────────────
+  // Match USDC outflows to known lending protocols with their USDC inflows back
+  const pastMap = {};
+
+  // Pass 1: record all USDC outflows to DeFi lending protocols (deposits)
+  for (const t of txs) {
+    if (!t.isOut || t.sym !== 'USDC') continue;
+    if (vaultAddrs.has(t.toL)) continue; // open vaults handled separately
+    const protoKey = PROTO[t.toL];
+    if (!protoKey) continue;
+    if (protoKey.includes('inch') || protoKey.includes('Exchange') || protoKey.includes('Uniswap')) continue;
+    if (!pastMap[protoKey]) pastMap[protoKey] = {
+      name: protoKey, type: 'Lending', open: false,
+      deposited: 0, withdrawn: 0, txHashes: new Set()
+    };
+    pastMap[protoKey].deposited += t.usd;
+    pastMap[protoKey].txHashes.add(t.hash);
+  }
+
+  // Pass 2: record all USDC inflows from DeFi protocol / yield-token addresses (withdrawals)
+  for (const t of txs) {
+    if (!t.isIn || t.sym !== 'USDC') continue;
+    if (vaultAddrs.has(t.fromL)) continue;
+    if (!defiAddrs.has(t.fromL)) continue;
+    for (const [key, s] of Object.entries(pastMap)) {
+      let matched = false;
+      if (PROTO[t.fromL] === key) {
+        matched = true;
+      } else if (key === 'Aave V3' &&
+          ['0x98c23e9d8f34fefb1b7bd6a91b7ff122f4e16f5c',
+           '0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2'].includes(t.fromL)) {
+        matched = true;
+      } else if (key === 'Aave Horizon RWA' &&
+          ['0x68215b6533c47ff9f7125ac95adf00fe4a62f79e',
+           '0xae05cd22df81871bc7cc2a04becfb516bfe332c8'].includes(t.fromL)) {
+        matched = true;
+      }
+      if (matched) { s.withdrawn += t.usd; s.txHashes.add(t.hash); break; }
+    }
+  }
+
+  const past = Object.values(pastMap).map(s => {
+    const gas = [...s.txHashes].reduce((sum, h) => sum + (gasMap[h?.toLowerCase()]||0), 0);
+    const gross = s.withdrawn - s.deposited;
+    return {
+      name: s.name, type: s.type, open: false,
+      dep: s.deposited || null, withdrawn: s.withdrawn,
+      gross, gas, net: gross - gas,
+      cur: null, yld: null, txCount: s.txHashes.size
+    };
+  }).filter(s => s.withdrawn > 0 || s.deposited > 0).sort((a, b) => b.net - a.net);
+
+  // ── Open (current) strategies ─────────────────────────────────────────────────
   const morphoRewardAddrs = new Set([
-    '0x3ef3d8ba38ebe18db133cec108f4d14ce00dd9ae',
-    '0x111111125421ca6dc452d289314280a0f8842a65',
+    '0x3ef3d8ba38ebe18db133cec108f4d14ce00dd9ae', // Morpho distributor
+    '0x111111125421ca6dc452d289314280a0f8842a65', // 1inch
     '0x1111111254eeb25477b68fb85ed929f73a960582',
   ]);
-
   const current = vaultPositions.map(v => {
     const vaultTxHashes = new Set(
-      txs.filter(t => t.to.toLowerCase() === v.addr || t.from.toLowerCase() === v.addr)
-         .map(t => t.hash)
+      txs.filter(t => t.toL === v.addr || t.fromL === v.addr).map(t => t.hash)
     );
-    const vaultGas = [...vaultTxHashes].reduce((s, h) => s + (gasMap[h?.toLowerCase()] || 0), 0);
-
+    const vaultGas = [...vaultTxHashes].reduce((s, h) => s + (gasMap[h?.toLowerCase()]||0), 0);
     let rewardGas = 0, rewardProfit = 0;
     if (v.name.toLowerCase().includes('morpho') || v.name.toLowerCase().includes('steakhouse')) {
-      // USDC inflows from 1inch = reward sales
       for (const t of txs) {
-        if (t.isIn && t.sym === 'USDC' && morphoRewardAddrs.has(t.from?.toLowerCase())) {
-          rewardProfit += t.usd;
-        }
+        if (t.isIn && t.sym === 'USDC' && (
+          morphoRewardAddrs.has(t.fromL) ||
+          (t.usd > 0.5 && t.usd < 200 &&
+           txs.some(t2 => t2.hash === t.hash && t2.isOut && (t2.sym === 'DAM' || t2.sym === 'MORPHO')))
+        )) { rewardProfit += t.usd; }
       }
-      // Also count USDC from fillOrderArgs (limit orders — from == filler, not a known proto)
-      for (const t of txs) {
-        if (t.isIn && t.sym === 'USDC' && t.type === 'transfer' && t.usd > 1 && t.usd < 100) {
-          // Small USDC inflows likely from limit order fills (DAM→USDC, MORPHO→USDC)
-          if (!morphoRewardAddrs.has(t.from?.toLowerCase())) {
-            // Check if there is a corresponding outbound transfer of DAM or MORPHO in same tx
-            const hasRewardOut = txs.some(t2 => t2.hash === t.hash && t2.isOut && (t2.sym === 'DAM' || t2.sym === 'MORPHO'));
-            if (hasRewardOut) rewardProfit += t.usd;
-          }
-        }
-      }
-      const rewardHashes = new Set(
-        txs.filter(t => morphoRewardAddrs.has(t.to?.toLowerCase()) || morphoRewardAddrs.has(t.from?.toLowerCase()))
-           .map(t => t.hash)
-      );
-      rewardGas = [...rewardHashes].reduce((s, h) => s + (gasMap[h?.toLowerCase()] || 0), 0);
+      const rh = new Set(txs.filter(t =>
+        morphoRewardAddrs.has(t.toL) || morphoRewardAddrs.has(t.fromL)
+      ).map(t => t.hash));
+      rewardGas = [...rh].reduce((s, h) => s + (gasMap[h?.toLowerCase()]||0), 0);
     }
-
     const grossPnl = (v.yield || 0) + rewardProfit;
     const gas = vaultGas + rewardGas;
     return {
       name: v.name, type: v.type, open: true,
       dep: v.deposited, cur: v.currentUSD, yld: v.yield,
       rewardProfit, gross: grossPnl, gas, net: grossPnl - gas,
-      txCount: vaultTxHashes.size,
+      txCount: vaultTxHashes.size
     };
   });
 
-  // ── Past (closed) strategies ──
-  const pastMap = {};
-  for (const t of txs) {
-    const toL = t.to?.toLowerCase();
-    const fromL = t.from?.toLowerCase();
-    if (vaultAddrs.has(toL) || vaultAddrs.has(fromL)) continue;
-    const protoKey = PROTO[toL] || PROTO[fromL];
-    if (!protoKey) continue;
-    // Skip DEX swaps (reward sales — attributed to vault strategy above)
-    if (protoKey.includes('inch') || protoKey.includes('Exchange') || protoKey.includes('Uniswap')) continue;
-
-    if (!pastMap[protoKey]) pastMap[protoKey] = {
-      name: protoKey, type: 'Lending', open: false,
-      deposited: 0, withdrawn: 0, txHashes: new Set(),
-    };
-    const s = pastMap[protoKey];
-    s.txHashes.add(t.hash);
-    if (t.isOut && t.sym === 'USDC') s.deposited += t.usd;
-    if (t.isIn  && t.sym === 'USDC') s.withdrawn += t.usd;
-  }
-
-  const past = Object.values(pastMap).map(s => {
-    const gas = [...s.txHashes].reduce((sum, h) => sum + (gasMap[h?.toLowerCase()] || 0), 0);
-    const gross = s.deposited > 0 ? s.withdrawn - s.deposited : s.withdrawn;
-    return {
-      name: s.name, type: s.type, open: false,
-      dep: s.deposited || null, cur: null, yld: null,
-      withdrawn: s.withdrawn, gross, gas, net: gross - gas,
-      txCount: s.txHashes.size,
-    };
-  }).filter(s => s.withdrawn > 0 || s.deposited > 0).sort((a, b) => b.net - a.net);
-
-  // ── Total capital ──
+  // ── Total capital now ─────────────────────────────────────────────────────────
   let cap = ethBal * ethPrice;
   for (const v of vaultPositions) { if (v.currentUSD) cap += v.currentUSD; }
   const tokenBals = {};
@@ -723,27 +750,56 @@ function build(address, transfers, ethBal, ethPrice, prices, vaultPositions, gas
     if (tb.net > 0 && tb.price > 0) cap += tb.net * tb.price;
   }
 
-  const totalPnl = [...current, ...past].reduce((s, x) => s + x.net, 0);
-  const unr = current.reduce((s, x) => s + (x.yld || 0), 0);
+  // ── Net P&L = Total capital now - Net external capital deposited ──────────────
+  //
+  // "External capital" = money that came into this wallet from OUTSIDE the DeFi ecosystem
+  //   - IN: USDC received from addresses that are NOT known DeFi protocols
+  //   - OUT: USDC sent to addresses that are NOT known DeFi protocols (returned to owner)
+  //
+  // Net external capital = externalIn - externalOut
+  // Net P&L = cap - netExternalCapital
+  //
+  // Examples:
+  //   Gnosis Safe sends $10,000 USDC → externalIn += 10,000
+  //   Wallet sends $5,000 USDC back to Gnosis Safe → externalOut += 5,000
+  //   Net external capital = $5,000  →  that's what's "at risk"
+  //
+  let externalIn = 0, externalOut = 0;
+  for (const t of txs) {
+    if (t.sym !== 'USDC') continue;
+    const isDeFiAddr = defiAddrs.has(t.toL) || defiAddrs.has(t.fromL) ||
+                       vaultAddrs.has(t.toL) || vaultAddrs.has(t.fromL);
+    if (!isDeFiAddr) {
+      if (t.isIn  && t.usd > 10) externalIn  += t.usd;
+      if (t.isOut && t.usd > 10) externalOut += t.usd;
+    }
+  }
+  const netExternalCapital = externalIn - externalOut;
+  const totalPnl = cap - netExternalCapital;
+
+  const unr   = current.reduce((s, x) => s + (x.yld || 0), 0);
   const flows = Object.values(fmap).filter(f => Math.abs(f.net) > 0.01).sort((a, b) => b.net - a.net);
   const tokensHeld = Object.entries(tokenBals)
     .filter(([, tb]) => tb.net > 0.0001 && tb.net * tb.price > 0.01)
     .sort(([, a], [, b]) => b.net * b.price - a.net * a.price)
-    .slice(0, 5)
-    .map(([sym, tb]) => ({ sym, ...tb }));
+    .slice(0, 5).map(([sym, tb]) => ({ sym, ...tb }));
 
-  return { txs, current, past, cap, totalPnl, totalGas, unr, flows, ethBal, ethPrice, tokensHeld, tokenBals };
+  return { txs, current, past, cap, totalPnl, totalGas, unr, flows,
+           ethBal, ethPrice, tokensHeld, tokenBals,
+           netExternalCapital, externalIn, externalOut };
 }
+
 // ── Render ────────────────────────────────────────────────────────────────────
 function render(d, ethPrice) {
   g('dash').classList.add('on');
   g('d-addr').textContent = curAddr;
   g('d-cap').textContent = fU(d.cap);
+  g('d-caps').textContent = 'live · vaults + wallet';
   const pe = g('d-pnl'); pe.textContent = (d.totalPnl >= 0 ? '+' : '') + fU(d.totalPnl); pe.className = 'sv ' + (d.totalPnl >= 0 ? 'g' : 'r');
-  g('d-pnls').textContent = 'realised + vault yield';
-  const ue = g('d-unr'); ue.textContent = (d.unr >= 0 ? '+' : '') + fU(d.unr); ue.className = 'sv ' + (d.unr >= 0 ? 'g' : 'r');
+  g('d-dep').textContent = fU(d.netExternalCapital);
+  g('d-deps').textContent = fU(d.externalIn) + ' in · ' + fU(d.externalOut) + ' out';
   g('d-gas').textContent = d.totalGas > 0 ? '$' + d.totalGas.toFixed(4) : '—';
-  g('d-gass').textContent = d.txs.length + ' transfers · all time';
+  g('d-gass').textContent = d.txs.length + ' transfers fetched';
 
   // Token strip
   const strip = g('tstrip'); strip.innerHTML = '';
