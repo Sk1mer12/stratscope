@@ -367,6 +367,38 @@ async function getEthBalance(address) {
   return r ? Number(BigInt(r)) / 1e18 : 0;
 }
 
+// Batch fetch tx receipts for gas calculation.
+// Only fetches txs where wallet is the sender (gas payer).
+// Alchemy supports JSON-RPC batch in a single HTTP request.
+async function getGasForTxs(hashes, ethPrice) {
+  if (!hashes.length) return {};
+  const batch = hashes.map((h, i) => ({
+    jsonrpc: '2.0', id: i,
+    method: 'eth_getTransactionReceipt',
+    params: [h]
+  }));
+  let r;
+  try {
+    r = await fetch(ALCHEMY_URL(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(batch)
+    });
+  } catch (e) { return {}; }
+  if (!r.ok) return {};
+  const results = await r.json();
+  const gasMap = {};
+  for (const res of (Array.isArray(results) ? results : [results])) {
+    const rec = res.result;
+    if (!rec) continue;
+    const gasUsed = parseInt(rec.gasUsed, 16);
+    const gasPrice = parseInt(rec.effectiveGasPrice || rec.gasPrice || '0', 16);
+    const gasCostWei = gasUsed * gasPrice;
+    gasMap[rec.transactionHash.toLowerCase()] = gasCostWei / 1e18 * ethPrice;
+  }
+  return gasMap;
+}
+
 // ── DeFiLlama prices ─────────────────────────────────────────────────────────
 async function llamaPrices(addrs) {
   if (!addrs.length) return {};
@@ -452,10 +484,18 @@ async function run(address) {
     setSub('Reading vault positions…');
     // Detect vault holdings from net balance of vault share tokens
     const vaultPositions = await detectVaultPositions(address, allTransfers, prices, ethPrice);
-    setPf(80);
+    setPf(75);
+
+    setSub('Fetching gas costs…');
+    const wallet = address.toLowerCase();
+    const senderHashes = [...new Set(
+      allTransfers.filter(t => (t.from || '').toLowerCase() === wallet).map(t => t.hash)
+    )];
+    const gasMap = await getGasForTxs(senderHashes, ethPrice);
+    setPf(90);
 
     setSub('Building dashboard…');
-    const result = build(address, allTransfers, ethBal, ethPrice, prices, vaultPositions);
+    const result = build(address, allTransfers, ethBal, ethPrice, prices, vaultPositions, gasMap);
     allTxs = result.txs;
     setPf(100);
 
@@ -539,10 +579,11 @@ async function detectVaultPositions(address, transfers, prices, ethPrice) {
 }
 
 // ── Build dashboard data ──────────────────────────────────────────────────────
-function build(address, transfers, ethBal, ethPrice, prices, vaultPositions) {
+function build(address, transfers, ethBal, ethPrice, prices, vaultPositions, gasMap) {
   const wallet = address.toLowerCase();
+  const vaultAddrs = new Set(Object.keys(VAULTS));
 
-  // Process transfers into display rows
+  // ── Process transfers into display rows ──
   const txs = transfers.map(t => {
     const isOut = (t.from || '').toLowerCase() === wallet;
     const isIn  = (t.to   || '').toLowerCase() === wallet;
@@ -552,87 +593,126 @@ function build(address, transfers, ethBal, ethPrice, prices, vaultPositions) {
     const addr  = (t.contractAddress || '').toLowerCase();
     const price = addr ? (prices[addr] || 0) : ethPrice;
     const usd   = amount * price;
-    const proto = PROTO[(t.to || '').toLowerCase()] || PROTO[(t.from || '').toLowerCase()] || null;
-
-    // Classify
-    let type = 'transfer';
-    const toL = (t.to || '').toLowerCase();
+    const toL   = (t.to   || '').toLowerCase();
     const fromL = (t.from || '').toLowerCase();
-    if (VAULTS[toL] && isOut) type = 'deposit';
-    else if (VAULTS[fromL] && isIn) type = 'withdraw';
+    const proto = PROTO[toL] || PROTO[fromL] || null;
+    const gasUSD = isOut ? (gasMap[(t.hash || '').toLowerCase()] || 0) : 0;
+
+    let type = 'transfer';
+    if (vaultAddrs.has(toL) && isOut) type = 'deposit';
+    else if (vaultAddrs.has(fromL) && isIn) type = 'withdraw';
     else if (t.category === 'external' || t.category === 'internal') type = 'eth';
 
-    return {
-      hash: t.hash,
-      date,
-      type,
-      sym,
-      amount,
-      usd,
-      price,
-      contractAddress: addr,
-      from: t.from || '',
-      to:   t.to   || '',
-      isOut,
-      isIn,
-      proto: proto || (isOut ? shortAddr(t.to) : shortAddr(t.from)),
-    };
+    return { hash: t.hash, date, type, sym, amount, usd, price,
+             contractAddress: addr, from: t.from || '', to: t.to || '',
+             isOut, isIn, gasUSD,
+             proto: proto || (isOut ? shortAddr(t.to) : shortAddr(t.from)) };
   });
 
-  // Token flow map (net USD received vs sent per token)
+  // ── Total gas (deduplicated by tx hash) ──
+  const seenHashes = new Set();
+  let totalGas = 0;
+  for (const t of txs) {
+    if (t.isOut && t.gasUSD > 0 && !seenHashes.has(t.hash)) {
+      totalGas += t.gasUSD;
+      seenHashes.add(t.hash);
+    }
+  }
+
+  // ── Token flow map ──
   const fmap = {};
   for (const t of txs) {
+    if (vaultAddrs.has(t.contractAddress)) continue;
     if (!fmap[t.sym]) fmap[t.sym] = { sym: t.sym, net: 0, addr: t.contractAddress };
     fmap[t.sym].net += t.isIn ? t.usd : t.isOut ? -t.usd : 0;
   }
 
-  // Strategy groups from vault positions
+  // ── Current (open) strategies ──
+  // Morpho/1inch reward addresses
+  const morphoRewardAddrs = new Set([
+    '0x3ef3d8ba38ebe18db133cec108f4d14ce00dd9ae',
+    '0x111111125421ca6dc452d289314280a0f8842a65',
+    '0x1111111254eeb25477b68fb85ed929f73a960582',
+  ]);
+
   const current = vaultPositions.map(v => {
-    const related = txs.filter(t =>
-      (t.to || '').toLowerCase() === v.addr ||
-      (t.from || '').toLowerCase() === v.addr
+    const vaultTxHashes = new Set(
+      txs.filter(t => t.to.toLowerCase() === v.addr || t.from.toLowerCase() === v.addr)
+         .map(t => t.hash)
     );
-    const grossPnl = v.yield || 0;
-    const gasCost  = 0; // gas not available from alchemy_getAssetTransfers
+    const vaultGas = [...vaultTxHashes].reduce((s, h) => s + (gasMap[h?.toLowerCase()] || 0), 0);
+
+    let rewardGas = 0, rewardProfit = 0;
+    if (v.name.toLowerCase().includes('morpho') || v.name.toLowerCase().includes('steakhouse')) {
+      // USDC inflows from 1inch = reward sales
+      for (const t of txs) {
+        if (t.isIn && t.sym === 'USDC' && morphoRewardAddrs.has(t.from?.toLowerCase())) {
+          rewardProfit += t.usd;
+        }
+      }
+      // Also count USDC from fillOrderArgs (limit orders — from == filler, not a known proto)
+      for (const t of txs) {
+        if (t.isIn && t.sym === 'USDC' && t.type === 'transfer' && t.usd > 1 && t.usd < 100) {
+          // Small USDC inflows likely from limit order fills (DAM→USDC, MORPHO→USDC)
+          if (!morphoRewardAddrs.has(t.from?.toLowerCase())) {
+            // Check if there is a corresponding outbound transfer of DAM or MORPHO in same tx
+            const hasRewardOut = txs.some(t2 => t2.hash === t.hash && t2.isOut && (t2.sym === 'DAM' || t2.sym === 'MORPHO'));
+            if (hasRewardOut) rewardProfit += t.usd;
+          }
+        }
+      }
+      const rewardHashes = new Set(
+        txs.filter(t => morphoRewardAddrs.has(t.to?.toLowerCase()) || morphoRewardAddrs.has(t.from?.toLowerCase()))
+           .map(t => t.hash)
+      );
+      rewardGas = [...rewardHashes].reduce((s, h) => s + (gasMap[h?.toLowerCase()] || 0), 0);
+    }
+
+    const grossPnl = (v.yield || 0) + rewardProfit;
+    const gas = vaultGas + rewardGas;
     return {
       name: v.name, type: v.type, open: true,
       dep: v.deposited, cur: v.currentUSD, yld: v.yield,
-      gross: grossPnl, gas: gasCost, net: grossPnl - gasCost,
-      txCount: related.length,
+      rewardProfit, gross: grossPnl, gas, net: grossPnl - gas,
+      txCount: vaultTxHashes.size,
     };
   });
 
-  // Past strategies — infer from significant deposit+withdraw cycles to known protocols
+  // ── Past (closed) strategies ──
   const pastMap = {};
   for (const t of txs) {
-    const toL = (t.to || '').toLowerCase();
-    const fromL = (t.from || '').toLowerCase();
-    if (!PROTO[toL] && !PROTO[fromL]) continue;
-    if (VAULTS[toL] || VAULTS[fromL]) continue; // handled as current
-    const key = PROTO[toL] || PROTO[fromL];
-    if (!pastMap[key]) pastMap[key] = { name: key, type: 'DeFi', open: false, inflows: 0, outflows: 0, txs: [] };
-    pastMap[key].txs.push(t);
-    if (t.isIn)  pastMap[key].inflows  += t.usd;
-    if (t.isOut) pastMap[key].outflows += t.usd;
-  }
-  const past = Object.values(pastMap).map(s => ({
-    ...s,
-    gross: s.inflows - s.outflows,
-    gas: 0,
-    net: s.inflows - s.outflows,
-    dep: s.outflows,
-    cur: null, yld: null,
-    txCount: s.txs.length,
-  })).filter(s => Math.abs(s.net) > 0.01 || s.txCount > 0).sort((a, b) => b.net - a.net);
+    const toL = t.to?.toLowerCase();
+    const fromL = t.from?.toLowerCase();
+    if (vaultAddrs.has(toL) || vaultAddrs.has(fromL)) continue;
+    const protoKey = PROTO[toL] || PROTO[fromL];
+    if (!protoKey) continue;
+    // Skip DEX swaps (reward sales — attributed to vault strategy above)
+    if (protoKey.includes('inch') || protoKey.includes('Exchange') || protoKey.includes('Uniswap')) continue;
 
-  // Total capital:
-  // - vault positions: use convertToAssets value (live, accurate)
-  // - ETH balance
-  // - other ERC-20 net holdings (excluding vault share tokens — they're already counted above)
-  const vaultAddrs = new Set(Object.keys(VAULTS));
+    if (!pastMap[protoKey]) pastMap[protoKey] = {
+      name: protoKey, type: 'Lending', open: false,
+      deposited: 0, withdrawn: 0, txHashes: new Set(),
+    };
+    const s = pastMap[protoKey];
+    s.txHashes.add(t.hash);
+    if (t.isOut && t.sym === 'USDC') s.deposited += t.usd;
+    if (t.isIn  && t.sym === 'USDC') s.withdrawn += t.usd;
+  }
+
+  const past = Object.values(pastMap).map(s => {
+    const gas = [...s.txHashes].reduce((sum, h) => sum + (gasMap[h?.toLowerCase()] || 0), 0);
+    const gross = s.deposited > 0 ? s.withdrawn - s.deposited : s.withdrawn;
+    return {
+      name: s.name, type: s.type, open: false,
+      dep: s.deposited || null, cur: null, yld: null,
+      withdrawn: s.withdrawn, gross, gas, net: gross - gas,
+      txCount: s.txHashes.size,
+    };
+  }).filter(s => s.withdrawn > 0 || s.deposited > 0).sort((a, b) => b.net - a.net);
+
+  // ── Total capital ──
   let cap = ethBal * ethPrice;
   for (const v of vaultPositions) { if (v.currentUSD) cap += v.currentUSD; }
-  // Add non-vault token net balances
   const tokenBals = {};
   for (const t of txs) {
     if (!t.contractAddress || vaultAddrs.has(t.contractAddress)) continue;
@@ -644,19 +724,16 @@ function build(address, transfers, ethBal, ethPrice, prices, vaultPositions) {
   }
 
   const totalPnl = [...current, ...past].reduce((s, x) => s + x.net, 0);
-  const totalGas = 0; // alchemy_getAssetTransfers doesn't include gas data
   const unr = current.reduce((s, x) => s + (x.yld || 0), 0);
   const flows = Object.values(fmap).filter(f => Math.abs(f.net) > 0.01).sort((a, b) => b.net - a.net);
-
-  // Tokens held for strip
-  const tokensHeld = Object.values(tokenBals)
-    .filter(t => t.net > 0.0001 && t.net * t.price > 0.01)
-    .sort((a, b) => b.net * b.price - a.net * a.price)
-    .slice(0, 5);
+  const tokensHeld = Object.entries(tokenBals)
+    .filter(([, tb]) => tb.net > 0.0001 && tb.net * tb.price > 0.01)
+    .sort(([, a], [, b]) => b.net * b.price - a.net * a.price)
+    .slice(0, 5)
+    .map(([sym, tb]) => ({ sym, ...tb }));
 
   return { txs, current, past, cap, totalPnl, totalGas, unr, flows, ethBal, ethPrice, tokensHeld, tokenBals };
 }
-
 // ── Render ────────────────────────────────────────────────────────────────────
 function render(d, ethPrice) {
   g('dash').classList.add('on');
@@ -665,8 +742,8 @@ function render(d, ethPrice) {
   const pe = g('d-pnl'); pe.textContent = (d.totalPnl >= 0 ? '+' : '') + fU(d.totalPnl); pe.className = 'sv ' + (d.totalPnl >= 0 ? 'g' : 'r');
   g('d-pnls').textContent = 'realised + vault yield';
   const ue = g('d-unr'); ue.textContent = (d.unr >= 0 ? '+' : '') + fU(d.unr); ue.className = 'sv ' + (d.unr >= 0 ? 'g' : 'r');
-  g('d-gas').textContent = 'N/A';
-  g('d-gass').textContent = d.txs.length + ' transfers · last 90d';
+  g('d-gas').textContent = d.totalGas > 0 ? '$' + d.totalGas.toFixed(4) : '—';
+  g('d-gass').textContent = d.txs.length + ' transfers · all time';
 
   // Token strip
   const strip = g('tstrip'); strip.innerHTML = '';
@@ -675,8 +752,9 @@ function render(d, ethPrice) {
     strip.innerHTML += `<div class="ti"><div class="tl">Tokens in wallet</div><div class="tv">${img}<span>${d.ethBal.toFixed(4)} ETH</span></div></div>`;
   }
   for (const tb of d.tokensHeld) {
-    const li = lgo(tb.addr) || lgo(''); const img = li ? `<img class="tlo" src="${li}" onerror="this.style.display='none'">` : '';
-    strip.innerHTML += `<div class="ti"><div class="tl">Tokens in wallet</div><div class="tv">${img}<span>${fU6(tb.net)} ${Object.entries(d.tokenBals).find(([k,v])=>v===tb)?.[0] || '?'}</span></div></div>`;
+    const li = lgo(tb.sym) || lgo(tb.addr || '');
+    const img = li ? `<img class="tlo" src="${li}" onerror="this.style.display='none'">` : '';
+    strip.innerHTML += `<div class="ti"><div class="tl">Tokens in wallet</div><div class="tv">${img}<span>${fU6(tb.net)} ${tb.sym}</span></div></div>`;
   }
 
   g('ccu').textContent = d.current.length;
@@ -697,22 +775,30 @@ function render(d, ethPrice) {
 function cH(s) {
   const c = s.net > 0 ? 'g' : s.net < 0 ? 'r' : 'n', sign = s.net > 0 ? '+' : '';
   const roi = s.dep > 0 ? (s.net / s.dep * 100).toFixed(4) + '%' : '—';
-  const li = lgo(s.name); const le = li ? `<img src="${li}" onerror="this.style.display='none';this.parentElement.textContent='${s.name[0]}'">` : s.name[0];
+  const li = lgo(s.name);
+  const le = li ? `<img src="${li}" onerror="this.style.display='none';this.parentElement.textContent='${s.name[0]}'">` : s.name[0];
   const live = s.open ? `<div class="livb"><span class="blk"></span>live position</div><br>` : '';
+
   const rows = [];
-  if (s.cur != null)  rows.push({ l: 'Current value', v: '$' + s.cur.toFixed(2), c: 'g' });
-  if (s.yld != null)  rows.push({ l: 'Vault yield', v: (s.yld >= 0 ? '+' : '') + '$' + Math.abs(s.yld).toFixed(6), c: 'g' });
-  if (s.dep != null && s.dep > 0) rows.push({ l: 'Deposited', v: '$' + s.dep.toFixed(2), c: '' });
-  if (!s.open && s.inflows)  rows.push({ l: 'Total inflows', v: fU(s.inflows), c: 'g' });
-  if (!s.open && s.outflows) rows.push({ l: 'Total outflows', v: fU(s.outflows), c: '' });
+  if (s.open) {
+    if (s.cur != null)          rows.push({ l: 'Current vault value',  v: '$' + s.cur.toFixed(2), c: 'g' });
+    if (s.yld != null)          rows.push({ l: 'Vault yield',          v: (s.yld >= 0 ? '+' : '') + '$' + Math.abs(s.yld).toFixed(6), c: 'g' });
+    if ((s.rewardProfit || 0) > 0) rows.push({ l: 'Rewards sold (1inch)', v: '+$' + s.rewardProfit.toFixed(6), c: 'g' });
+    if (s.dep > 0)              rows.push({ l: 'Deposited',            v: '$' + s.dep.toFixed(2), c: '' });
+  } else {
+    if (s.dep > 0)              rows.push({ l: 'Deposited',            v: '$' + s.dep.toFixed(2), c: '' });
+    if (s.withdrawn > 0)        rows.push({ l: 'Withdrawn (USDC)',     v: '$' + s.withdrawn.toFixed(6), c: 'g' });
+  }
+
   return `<div class="card ${s.open ? '' : 'past'}">
     <div class="ch">
       <div style="display:flex;align-items:center;gap:10px"><div class="clo">${le}</div><div><div class="cn2">${s.name}</div><div class="ct">${s.type}</div></div></div>
-      <div style="text-align:right"><div class="cp ${c}">${sign}${fU(s.net)}</div><div class="cpl">net P&amp;L</div></div>
+      <div style="text-align:right"><div class="cp ${c}">${sign}${fU(s.net)}</div><div class="cpl">net P&L</div></div>
     </div>${live}
     ${rows.map(r => `<div class="row"><div class="rl">${r.l}</div><div class="rv ${r.c}">${r.v}</div></div>`).join('')}
     ${rows.length ? '<div class="dv"></div>' : ''}
-    <div class="row"><div class="rl">Gross P&amp;L</div><div class="rv g">${s.gross >= 0 ? '+' : ''}${fU(s.gross)}</div></div>
+    <div class="row"><div class="rl">Gross P&L</div><div class="rv ${(s.gross||0) >= 0 ? 'g' : 'r'}">${(s.gross||0) >= 0 ? '+' : ''}${fU(s.gross||0)}</div></div>
+    <div class="row"><div class="rl">Gas paid</div><div class="rv">$${(s.gas||0).toFixed(4)}</div></div>
     <div class="row"><div class="rl">ROI</div><div class="rv ${c}">${roi}</div></div>
     <div class="row"><div class="rl">Transfers</div><div class="rv">${s.txCount}</div></div>
     <div class="row"><div class="rl">Status</div><div style="display:flex;gap:5px">
@@ -721,7 +807,6 @@ function cH(s) {
     </div></div>
   </div>`;
 }
-
 function renderTxs(txs) {
   g('txlbl').textContent = txs.length + ' transfers';
   g('txbd').innerHTML = !txs.length
