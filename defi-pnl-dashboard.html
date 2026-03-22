@@ -211,7 +211,7 @@ td{padding:11px 1.2rem;vertical-align:middle}
   <div class="sg">
     <div class="sc"><div class="sl">Total capital now</div><div class="sv" id="d-cap">—</div><div class="ss" id="d-caps"></div></div>
     <div class="sc"><div class="sl">Net P&L</div><div class="sv g" id="d-pnl">—</div><div class="ss">capital now − deposited</div></div>
-    <div class="sc"><div class="sl">Capital deposited</div><div class="sv" id="d-dep">—</div><div class="ss" id="d-deps">net external USDC in</div></div>
+    <div class="sc"><div class="sl">Capital deposited</div><div class="sv" id="d-dep">—</div><div class="ss" id="d-deps">open strategies</div></div>
     <div class="sc"><div class="sl">Gas paid (30d)</div><div class="sv" id="d-gas" style="font-size:1.3rem;margin-top:6px">—</div><div class="ss" id="d-gass"></div></div>
   </div>
   <div class="wbar">
@@ -764,17 +764,7 @@ function build(address, transfers, ethBal, ethPrice, prices, vaultPositions, gas
   //   Wallet sends $5,000 USDC back to Gnosis Safe → externalOut += 5,000
   //   Net external capital = $5,000  →  that's what's "at risk"
   //
-  let externalIn = 0, externalOut = 0;
-  for (const t of txs) {
-    if (t.sym !== 'USDC') continue;
-    const isDeFiAddr = defiAddrs.has(t.toL) || defiAddrs.has(t.fromL) ||
-                       vaultAddrs.has(t.toL) || vaultAddrs.has(t.fromL);
-    if (!isDeFiAddr) {
-      if (t.isIn  && t.usd > 10) externalIn  += t.usd;
-      if (t.isOut && t.usd > 10) externalOut += t.usd;
-    }
-  }
-  const netExternalCapital = externalIn - externalOut;
+  const netExternalCapital = current.reduce((s, v) => s + (v.dep || 0), 0);
   const totalPnl = cap - netExternalCapital;
 
   const unr   = current.reduce((s, x) => s + (x.yld || 0), 0);
@@ -785,8 +775,7 @@ function build(address, transfers, ethBal, ethPrice, prices, vaultPositions, gas
     .slice(0, 5).map(([sym, tb]) => ({ sym, ...tb }));
 
   return { txs, current, past, cap, totalPnl, totalGas, unr, flows,
-           ethBal, ethPrice, tokensHeld, tokenBals,
-           netExternalCapital, externalIn, externalOut };
+           ethBal, ethPrice, tokensHeld, tokenBals, netExternalCapital };
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -797,7 +786,7 @@ function render(d, ethPrice) {
   g('d-caps').textContent = 'live · vaults + wallet';
   const pe = g('d-pnl'); pe.textContent = (d.totalPnl >= 0 ? '+' : '') + fU(d.totalPnl); pe.className = 'sv ' + (d.totalPnl >= 0 ? 'g' : 'r');
   g('d-dep').textContent = fU(d.netExternalCapital);
-  g('d-deps').textContent = fU(d.externalIn) + ' in · ' + fU(d.externalOut) + ' out';
+  g('d-deps').textContent = 'total deposited in open strategies';
   g('d-gas').textContent = d.totalGas > 0 ? '$' + d.totalGas.toFixed(4) : '—';
   g('d-gass').textContent = d.txs.length + ' transfers fetched';
 
