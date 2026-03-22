@@ -3,260 +3,287 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stratscope · 0x488B</title>
+<title>Stratscope</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#0a0a0f;--bg2:#111118;--bg3:#18181f;--surface:#1e1e28;--surface2:#242430;
-    --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
-    --text:#f0eeff;--muted:#7b7a99;--muted2:#9998b8;
-    --accent:#7c6aff;--green:#2dd4a0;--red:#ff5e6e;--amber:#f5a623;--blue:#4fc3f7;
-    --font-head:'Syne',sans-serif;--font-mono:'DM Mono',monospace;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:var(--font-head);min-height:100vh}
-  .nav{display:flex;align-items:center;justify-content:space-between;padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:100}
-  .nav-logo{font-size:1.1rem;font-weight:700;letter-spacing:-.03em;display:flex;align-items:center;gap:8px}
-  .nav-logo span{color:var(--accent)}
-  .pill{font-family:var(--font-mono);font-size:11px;padding:5px 12px;border-radius:20px;background:var(--surface);border:1px solid var(--border2);color:var(--muted2);display:flex;align-items:center;gap:6px}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
-  .container{max-width:1200px;margin:0 auto;padding:2rem}
-
-  /* Summary */
-  .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-radius:16px;overflow:hidden;margin-bottom:1.25rem}
-  .sc{background:var(--bg2);padding:1.5rem}
-  .s-label{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
-  .s-val{font-size:1.9rem;font-weight:700;letter-spacing:-.04em}
-  .s-val.g{color:var(--green)}.s-val.r{color:var(--red)}
-  .s-sub{font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--font-mono)}
-
-  /* Tokens in wallet bar */
-  .capital-bar{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1rem 1.5rem;margin-bottom:2rem;display:flex;flex-wrap:wrap;gap:0}
-  .cap-item{flex:1;min-width:160px;padding:.5rem 1.25rem;border-right:1px solid var(--border)}
-  .cap-item:first-child{padding-left:0}
-  .cap-item:last-child{border-right:none}
-  .cap-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
-  .cap-val{font-family:var(--font-mono);font-size:13px;color:var(--text);display:flex;align-items:center;gap:7px}
-  .cap-val img{width:16px;height:16px;border-radius:4px;object-fit:cover;flex-shrink:0}
-
-  /* Main tabs */
-  .tabs{display:flex;margin-bottom:1.5rem;border-bottom:1px solid var(--border)}
-  .tab{font-size:13px;padding:9px 18px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font-head);transition:all .15s}
-  .tab.active{color:var(--text);border-bottom-color:var(--accent)}
-  .tc{display:none}.tc.active{display:block}
-
-  /* Inner strategy tabs */
-  .inner-tabs{display:flex;gap:8px;margin-bottom:1.5rem}
-  .itab{font-size:13px;font-weight:600;padding:7px 20px;border-radius:10px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--font-head);transition:all .15s;display:flex;align-items:center;gap:7px}
-  .itab.active{background:var(--accent);border-color:var(--accent);color:#fff}
-  .itab .cnt{font-size:11px;font-weight:400;font-family:var(--font-mono);background:rgba(255,255,255,0.15);padding:1px 6px;border-radius:10px}
-  .itab:not(.active) .cnt{background:var(--surface2);color:var(--muted)}
-  .ipanel{display:none}.ipanel.active{display:block}
-
-  /* Cards */
-  .strategies{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem}
-  .card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:1.25rem;transition:border-color .2s,transform .2s;cursor:pointer}
-  .card:hover{border-color:var(--border2);transform:translateY(-2px)}
-  .card.past{opacity:.8}.card.past:hover{opacity:1;transform:translateY(-2px)}
-  .card-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem}
-  .proto-logo{width:40px;height:40px;border-radius:10px;overflow:hidden;flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--muted2)}
-  .proto-logo img{width:40px;height:40px;object-fit:cover;display:block;border-radius:10px}
-  .sname{font-size:14px;font-weight:700}
-  .stype{font-size:11px;color:var(--muted);margin-top:3px;font-family:var(--font-mono)}
-  .spnl{font-size:1.4rem;font-weight:700;letter-spacing:-.03em}
-  .spnl.g{color:var(--green)}.spnl.r{color:var(--red)}.spnl.n{color:var(--muted2)}
-  .spnl-l{font-size:11px;color:var(--muted);text-align:right}
-  .sdesc{font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:.75rem}
-  .divider{height:1px;background:var(--border);margin:.75rem 0}
-  .sr{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
-  .sr:last-child{margin-bottom:0}
-  .sr-l{font-size:12px;color:var(--muted)}
-  .sr-v{font-size:12px;font-family:var(--font-mono);color:var(--muted2)}
-  .sr-v.g{color:var(--green)}.sr-v.r{color:var(--red)}.sr-v.a{color:var(--amber)}
-  .cbadge{font-size:10px;padding:2px 8px;border-radius:6px;font-family:var(--font-mono);border:1px solid var(--border)}
-  .cbadge.open{background:rgba(45,212,160,0.1);color:var(--green);border-color:rgba(45,212,160,0.3)}
-  .cbadge.closed{background:var(--surface2);color:var(--muted)}
-  .cbadge.chain{background:var(--surface2);color:var(--muted)}
-  .bars{display:flex;align-items:flex-end;gap:2px;height:26px;margin:.5rem 0}
-  .bar{flex:1;border-radius:2px;min-height:3px}
-  .bar.g{background:var(--green);opacity:.65}.bar.n{background:var(--surface2)}
-  .live-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:20px;background:rgba(45,212,160,0.1);color:var(--green);border:1px solid rgba(45,212,160,0.25);font-family:var(--font-mono);margin-bottom:.6rem}
-  .blink{width:5px;height:5px;border-radius:50%;background:var(--green);animation:bl 1.4s ease-in-out infinite}
-  @keyframes bl{0%,100%{opacity:1}50%{opacity:.2}}
-
-  /* Tx table */
-  .txsec{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden}
-  .txhdr{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-  .txsrch{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-family:var(--font-head);font-size:13px;color:var(--text);width:220px;outline:none}
-  .txsrch::placeholder{color:var(--muted)}.txsrch:focus{border-color:var(--accent)}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  thead th{padding:10px 1.2rem;text-align:left;font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border);background:var(--bg3)}
-  tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
-  tbody tr:last-child{border-bottom:none}
-  tbody tr:hover{background:var(--surface)}
-  td{padding:11px 1.2rem;vertical-align:middle}
-  .txh{font-family:var(--font-mono);font-size:12px;color:var(--accent);text-decoration:none}
-  .txh:hover{text-decoration:underline}
-  .badge{font-size:11px;padding:3px 8px;border-radius:6px;font-family:var(--font-mono);white-space:nowrap}
-  .badge.swap{background:rgba(77,195,247,0.12);color:var(--blue)}
-  .badge.deposit{background:rgba(45,212,160,0.12);color:var(--green)}
-  .badge.withdraw{background:rgba(255,94,110,0.12);color:var(--red)}
-  .badge.claim{background:rgba(245,166,35,0.12);color:var(--amber)}
-  .badge.approve{background:rgba(124,106,255,0.1);color:var(--accent)}
-  .badge.other{background:var(--surface2);color:var(--muted2)}
-  .pg{color:var(--green);font-family:var(--font-mono)}
-  .pr{color:var(--red);font-family:var(--font-mono)}
-  .pn{color:var(--muted);font-family:var(--font-mono)}
-
-  /* Token flows */
-  .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
-  .tcard{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.1rem;display:flex;align-items:center;gap:14px}
-  .tlogo{width:38px;height:38px;border-radius:50%;background:var(--surface2);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--muted2)}
-  .tlogo img{width:38px;height:38px;object-fit:cover;border-radius:50%}
-
-  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px}
-  @media(max-width:768px){
-    .summary-grid{grid-template-columns:repeat(2,1fr)}
-    .strategies{grid-template-columns:1fr}
-    .container{padding:1rem}
-    .nav{padding:.75rem 1rem}
-    .cap-item{min-width:140px;padding:.5rem .75rem}
-  }
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#18181f;--surface:#1e1e28;--surface2:#242430;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --text:#f0eeff;--muted:#7b7a99;--muted2:#9998b8;
+  --accent:#7c6aff;--green:#2dd4a0;--red:#ff5e6e;--amber:#f5a623;--blue:#4fc3f7;
+  --fh:'Syne',sans-serif;--fm:'DM Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--fh);min-height:100vh}
+/* Nav */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:100}
+.logo{font-size:1.1rem;font-weight:700;letter-spacing:-.03em}.logo span{color:var(--accent)}
+.nav-r{display:flex;align-items:center;gap:10px}
+.pill{font-family:var(--fm);font-size:11px;padding:5px 12px;border-radius:20px;background:var(--surface);border:1px solid var(--border2);color:var(--muted2);display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.btn{padding:9px 20px;border-radius:10px;font-family:var(--fh);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+.bp{background:var(--accent);color:#fff}.bp:hover{background:#6b5be0;transform:translateY(-1px)}
+.bs{background:var(--surface2);color:var(--muted2);border:1px solid var(--border2)}.bs:hover{color:var(--text)}
+/* Modal */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);z-index:200;display:flex;align-items:center;justify-content:center}
+.ov.h{display:none}
+.mo{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:2rem;width:100%;max-width:440px}
+.mo h2{font-size:1.15rem;font-weight:700;margin-bottom:6px}
+.mo .sub{color:var(--muted);font-size:13px;margin-bottom:1.5rem;line-height:1.5}
+/* API key section */
+.inp{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--fm);font-size:12px;outline:none;transition:border-color .2s}
+.inp:focus{border-color:var(--accent)}.inp::placeholder{color:var(--muted)}
+.inp.err{border-color:var(--red)!important}
+/* Wallet opts */
+.wopt{display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:all .2s;margin-bottom:10px}
+.wopt:hover{border-color:var(--accent);background:var(--surface2)}
+.wopt.disabled{opacity:.4;pointer-events:none}
+.wi{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.wn{font-size:14px;font-weight:600}.wd{font-size:12px;color:var(--muted);margin-top:2px}
+.wbg{margin-left:auto;font-size:11px;padding:3px 9px;border-radius:10px;font-family:var(--fm);border:1px solid transparent}
+.wok{background:rgba(45,212,160,.12);color:var(--green);border-color:rgba(45,212,160,.25)}
+.wno{background:var(--surface2);color:var(--muted);border-color:var(--border)}
+.drow{display:flex;align-items:center;gap:10px;margin:14px 0 12px}
+.drow .ln{flex:1;height:1px;background:var(--border)}
+.drow span{font-size:12px;color:var(--muted)}
+.ferr{font-size:12px;color:var(--red);margin-top:5px;display:none}
+.mc{width:100%;margin-top:10px;padding:11px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--fh);font-size:13px;cursor:pointer}
+.mc:hover{background:var(--surface);color:var(--text)}
+/* Landing */
+.land{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;gap:16px;padding:2rem}
+.land-ico{font-size:3rem;opacity:.2}
+.land-t{font-size:1.7rem;font-weight:700;letter-spacing:-.03em}
+.land-s{color:var(--muted);font-size:15px;max-width:400px;line-height:1.65}
+.stack{display:flex;gap:8px;font-size:11px;color:var(--muted);font-family:var(--fm)}
+.stack span{padding:3px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)}
+/* Loading */
+.load{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:20px;padding:2rem;text-align:center}
+.load.on{display:flex}
+.spin{width:48px;height:48px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.load-t{font-size:1rem;font-weight:600}
+.load-s{font-size:13px;color:var(--muted);max-width:300px;line-height:1.6;font-family:var(--fm)}
+.ptr{width:300px;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden}
+.pf{height:100%;background:var(--accent);border-radius:2px;transition:width .5s;width:0%}
+/* Error */
+.er{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:40vh;gap:12px;text-align:center;padding:2rem}
+.er.on{display:flex}
+.et{font-size:1rem;font-weight:700;color:var(--red)}
+.em{font-size:12px;color:var(--muted);max-width:460px;line-height:1.6;background:var(--surface);border-radius:10px;padding:12px 16px;font-family:var(--fm);text-align:left}
+/* Dashboard */
+.da{display:none}.da.on{display:block}
+.ctn{max-width:1200px;margin:0 auto;padding:2rem}
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-radius:16px;overflow:hidden;margin-bottom:1.25rem}
+.sc{background:var(--bg2);padding:1.5rem}
+.sl{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+.sv{font-size:1.9rem;font-weight:700;letter-spacing:-.04em}
+.sv.g{color:var(--green)}.sv.r{color:var(--red)}
+.ss{font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--fm)}
+.wbar{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1rem 1.5rem;margin-bottom:2rem;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.wa{font-family:var(--fm);font-size:12px;color:var(--muted2);word-break:break-all}
+.tstrip{display:flex;gap:2rem;flex-wrap:wrap}
+.ti .tl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.ti .tv{font-family:var(--fm);font-size:13px;display:flex;align-items:center;gap:6px}
+.tlo{width:16px;height:16px;border-radius:4px;object-fit:cover;flex-shrink:0}
+.tabs{display:flex;margin-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.tab{font-size:13px;padding:9px 18px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--fh);transition:all .15s}
+.tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.tc{display:none}.tc.on{display:block}
+.its{display:flex;gap:8px;margin-bottom:1.5rem}
+.it{font-size:13px;font-weight:600;padding:7px 20px;border-radius:10px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--fh);transition:all .15s;display:flex;align-items:center;gap:8px}
+.it.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.ic{font-size:11px;font-weight:400;font-family:var(--fm);padding:1px 7px;border-radius:10px}
+.it.on .ic{background:rgba(255,255,255,.2)}.it:not(.on) .ic{background:var(--surface2);color:var(--muted)}
+.ip{display:none}.ip.on{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem}
+.emp{text-align:center;padding:3rem;color:var(--muted);font-size:14px;background:var(--bg2);border:1px solid var(--border);border-radius:14px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:1.25rem;transition:border-color .2s,transform .2s}
+.card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.card.past{opacity:.8}.card.past:hover{opacity:1;transform:translateY(-2px)}
+.ch{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem}
+.clo{width:40px;height:40px;border-radius:10px;overflow:hidden;flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--muted2)}
+.clo img{width:40px;height:40px;object-fit:cover;display:block}
+.cn2{font-size:14px;font-weight:700}.ct{font-size:11px;color:var(--muted);margin-top:3px;font-family:var(--fm)}
+.cp{font-size:1.4rem;font-weight:700;letter-spacing:-.03em}
+.cp.g{color:var(--green)}.cp.r{color:var(--red)}.cp.n{color:var(--muted2)}
+.cpl{font-size:11px;color:var(--muted);text-align:right}
+.dv{height:1px;background:var(--border);margin:.75rem 0}
+.row{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+.row:last-child{margin-bottom:0}
+.rl{font-size:12px;color:var(--muted)}.rv{font-size:12px;font-family:var(--fm);color:var(--muted2)}
+.rv.g{color:var(--green)}.rv.r{color:var(--red)}.rv.a{color:var(--amber)}
+.cbdg{font-size:10px;padding:2px 8px;border-radius:6px;font-family:var(--fm);border:1px solid var(--border)}
+.cbdg.op{background:rgba(45,212,160,.1);color:var(--green);border-color:rgba(45,212,160,.3)}
+.cbdg.cl{background:var(--surface2);color:var(--muted)}
+.cbdg.ch2{background:var(--surface2);color:var(--muted)}
+.livb{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:20px;background:rgba(45,212,160,.1);color:var(--green);border:1px solid rgba(45,212,160,.25);font-family:var(--fm);margin-bottom:.6rem}
+.blk{width:5px;height:5px;border-radius:50%;background:var(--green);animation:bl 1.4s infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.2}}
+.txbox{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.txhd{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.txsr{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-family:var(--fh);font-size:13px;color:var(--text);width:220px;outline:none}
+.txsr::placeholder{color:var(--muted)}.txsr:focus{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{padding:10px 1.2rem;text-align:left;font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border);background:var(--bg3)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--surface)}
+td{padding:11px 1.2rem;vertical-align:middle}
+.txlnk{font-family:var(--fm);font-size:12px;color:var(--accent);text-decoration:none}.txlnk:hover{text-decoration:underline}
+.bdg{font-size:11px;padding:3px 8px;border-radius:6px;font-family:var(--fm);white-space:nowrap}
+.bdg.swap{background:rgba(77,195,247,.12);color:var(--blue)}
+.bdg.deposit{background:rgba(45,212,160,.12);color:var(--green)}
+.bdg.withdraw{background:rgba(255,94,110,.12);color:var(--red)}
+.bdg.claim{background:rgba(245,166,35,.12);color:var(--amber)}
+.bdg.approve{background:rgba(124,106,255,.1);color:var(--accent)}
+.bdg.other{background:var(--surface2);color:var(--muted2)}
+.pg{color:var(--green);font-family:var(--fm)}.pr{color:var(--red);font-family:var(--fm)}.pn{color:var(--muted);font-family:var(--fm)}
+.tgrd{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
+.tcd{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.1rem;display:flex;align-items:center;gap:14px}
+.tlb{width:38px;height:38px;border-radius:50%;background:var(--surface2);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--muted2)}
+.tlb img{width:38px;height:38px;object-fit:cover;border-radius:50%}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px}
+@media(max-width:768px){.sg{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:1fr}.ctn{padding:1rem}.nav{padding:.75rem 1rem}}
 </style>
 </head>
 <body>
 
+<!-- Nav -->
 <nav class="nav">
-  <div class="nav-logo">◈ <span>strat</span>scope</div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <div class="pill">ETH mainnet</div>
-    <div class="pill"><span class="dot"></span>0x488B…0059</div>
+  <div class="logo">◈ <span>strat</span>scope</div>
+  <div class="nav-r">
+    <div class="pill" id="cpill" style="display:none">ETH mainnet</div>
+    <div class="pill" id="wpill" style="display:none"><span class="dot"></span><span id="wsh"></span></div>
+    <button class="btn bp" id="btnc" onclick="openModal()">Connect wallet</button>
+    <button class="btn bs" id="btnd" style="display:none" onclick="doDisc()">Disconnect</button>
   </div>
 </nav>
 
-<div class="container">
+<!-- Modal -->
+<div class="ov h" id="ov" onclick="if(event.target===this)closeModal()">
+  <div class="mo">
+    <h2>Connect your wallet</h2>
+    <div class="sub">Connect to analyse any Ethereum wallet's DeFi strategies and P&L in real time.</div>
 
-  <!-- Summary strip -->
-  <div class="summary-grid">
-    <div class="sc">
-      <div class="s-label">Total capital now</div>
-      <!-- Live from chain: USDC balanceOf=$15.660863 + Morpho convertToAssets=$20,051.890375
-           + Fluid convertToAssets=$10,040.906407 + MORPHO token 1.134273×$1.74=$1.973635 -->
-      <div class="s-val" id="s-capital">$30,110.43</div>
-      <div class="s-sub">across all live positions</div>
+    <!-- Wallet options -->
+    <div class="wopt" id="wext" onclick="connExt()">
+      <div class="wi" style="background:rgba(124,106,255,.15)">🐰</div>
+      <div><div class="wn">Rabby / MetaMask</div><div class="wd" id="wextd">Detecting…</div></div>
+      <div class="wbg wno" id="wextb">—</div>
     </div>
-    <div class="sc">
-      <div class="s-label">Net P&L (30d)</div>
-      <div class="s-val g">+$160.01</div>
-      <div class="s-sub">realised · gas $0.35 total</div>
-    </div>
-    <div class="sc">
-      <div class="s-label">Unrealised P&L</div>
-      <div class="s-val g">+$2.14</div>
-      <div class="s-sub">MORPHO held + Fluid yield</div>
-    </div>
-    <div class="sc">
-      <div class="s-label">Gas paid</div>
-      <div class="s-val" style="font-size:1.4rem;margin-top:6px">$0.3482</div>
-      <div class="s-sub">16 txs · Feb 18 → Mar 20</div>
-    </div>
+
+    <div class="drow"><div class="ln"></div><span>or paste any address</span><div class="ln"></div></div>
+    <input class="inp" id="ain" placeholder="0x… Ethereum address" style="font-size:13px;padding:10px 14px;margin-bottom:8px" onkeydown="if(event.key==='Enter')connManual()">
+    <div class="ferr" id="aerr">Enter a valid 0x Ethereum address.</div>
+    <button class="btn bp" style="width:100%;margin-top:4px" onclick="connManual()">Analyse →</button>
+    <button class="mc" onclick="closeModal()">Cancel</button>
   </div>
+</div>
 
-  <!-- Tokens in wallet bar -->
-  <!-- All values from live on-chain reads (balanceOf / convertToAssets) -->
-  <div class="capital-bar">
-    <div class="cap-item">
-      <div class="cap-label">Tokens in wallet</div>
-      <div class="cap-val">
-        <img src="https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F6319%2Fsmall%2FUSDC.png%3F1769615602&w=32&h=32" alt="USDC" onerror="this.style.display='none'">
-        <span>$15.660863 USDC</span>
-      </div>
-    </div>
-    <div class="cap-item">
-      <div class="cap-label">Steakhouse / Morpho vault</div>
-      <div class="cap-val" style="color:var(--green)">
-        <img src="https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F29837%2Fsmall%2FMorpho-token-icon.png%3F1726771230&w=32&h=32" alt="Morpho" onerror="this.style.display='none'">
-        <span>$20,051.890375</span>
-      </div>
-    </div>
-    <div class="cap-item">
-      <div class="cap-label">Fluid Lite USD vault</div>
-      <div class="cap-val" style="color:var(--green)">
-        <img src="https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F38030%2Fsmall%2FfUSDC.png%3F1716322637&w=32&h=32" alt="Fluid" onerror="this.style.display='none'">
-        <span>$10,040.906407</span>
-      </div>
-    </div>
-    <div class="cap-item">
-      <div class="cap-label">MORPHO token</div>
-      <div class="cap-val" style="color:var(--amber)">
-        <img src="https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F29837%2Fsmall%2FMorpho-token-icon.png%3F1726771230&w=32&h=32" alt="MORPHO" onerror="this.style.display='none'">
-        <span>1.134273 (~$1.97)</span>
-      </div>
-    </div>
+<!-- Landing -->
+<div class="land" id="land">
+  <div class="land-ico">⬡</div>
+  <div class="land-t">Your DeFi strategy P&L</div>
+  <div class="land-s">Connect any Ethereum wallet to see live on-chain P&L across all strategies — swaps, lending, yield vaults, and more.</div>
+  <button class="btn bp" style="margin-top:8px" onclick="openModal()">Connect wallet →</button>
+  <div class="stack"><span>Alchemy</span><span>DeFiLlama</span><span>Real-time</span></div>
+  <div id="conn-badge" style="font-size:12px;font-family:var(--fm);color:var(--muted);margin-top:4px">Testing connection…</div>
+</div>
+
+<!-- Loading -->
+<div class="load" id="loel">
+  <div class="spin"></div>
+  <div class="load-t" id="ltit">Fetching on-chain data…</div>
+  <div class="load-s" id="lsub">Calling Alchemy API</div>
+  <div class="ptr"><div class="pf" id="pf"></div></div>
+</div>
+
+<!-- Error -->
+<div class="er" id="erel">
+  <div class="et">Failed to load data</div>
+  <div class="em" id="emsg"></div>
+  <button class="btn bp" style="margin-top:4px" onclick="doDisc()">Try another wallet</button>
+</div>
+
+<!-- Dashboard -->
+<div class="da" id="dash">
+<div class="ctn">
+  <div class="sg">
+    <div class="sc"><div class="sl">Total capital now</div><div class="sv" id="d-cap">—</div><div class="ss" id="d-caps"></div></div>
+    <div class="sc"><div class="sl">Net P&L</div><div class="sv g" id="d-pnl">—</div><div class="ss" id="d-pnls"></div></div>
+    <div class="sc"><div class="sl">Unrealised P&L</div><div class="sv g" id="d-unr">—</div><div class="ss">open vault positions</div></div>
+    <div class="sc"><div class="sl">Gas paid</div><div class="sv" id="d-gas" style="font-size:1.3rem;margin-top:6px">—</div><div class="ss" id="d-gass"></div></div>
   </div>
-
-  <!-- Main tabs -->
+  <div class="wbar">
+    <div style="display:flex;align-items:center;gap:10px"><span class="dot"></span><span class="wa" id="d-addr"></span></div>
+    <div class="tstrip" id="tstrip"></div>
+  </div>
   <div class="tabs">
-    <button class="tab active" onclick="switchTab('strategies',this)">Strategies</button>
-    <button class="tab" onclick="switchTab('transactions',this)">Transactions</button>
-    <button class="tab" onclick="switchTab('tokens',this)">Token flows</button>
+    <button class="tab on" onclick="stab('st',this)">Strategies</button>
+    <button class="tab" onclick="stab('tx',this)">Transactions</button>
+    <button class="tab" onclick="stab('fl',this)">Token flows</button>
   </div>
-
-  <!-- STRATEGIES TAB -->
-  <div id="tab-strategies" class="tc active">
-    <div class="inner-tabs">
-      <button class="itab active" onclick="switchInner('current',this)">
-        Current strategies <span class="cnt">2</span>
-      </button>
-      <button class="itab" onclick="switchInner('past',this)">
-        Past strategies <span class="cnt">2</span>
-      </button>
+  <div id="tab-st" class="tc on">
+    <div class="its">
+      <button class="it on" onclick="sit('cu',this)">Current <span class="ic" id="ccu">0</span></button>
+      <button class="it" onclick="sit('pa',this)">Past <span class="ic" id="cpa">0</span></button>
     </div>
-    <div id="ipanel-current" class="ipanel active">
-      <div class="strategies" id="sg-current"></div>
-    </div>
-    <div id="ipanel-past" class="ipanel">
-      <div class="strategies" id="sg-past"></div>
-    </div>
+    <div id="ip-cu" class="ip on"><div class="cards" id="scu"></div></div>
+    <div id="ip-pa" class="ip"><div class="cards" id="spa"></div></div>
   </div>
-
-  <!-- TRANSACTIONS TAB -->
-  <div id="tab-transactions" class="tc">
-    <div class="txsec">
-      <div class="txhdr">
-        <div style="font-size:14px;font-weight:700">All transactions
-          <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);font-weight:400" id="txcnt">16 txs</span>
-        </div>
-        <input class="txsrch" id="txsi" placeholder="Search protocol, method, token…" oninput="ftx(this.value)">
+  <div id="tab-tx" class="tc">
+    <div class="txbox">
+      <div class="txhd">
+        <div style="font-size:14px;font-weight:700">Transactions <span id="txlbl" style="font-family:var(--fm);font-size:12px;color:var(--muted);font-weight:400"></span></div>
+        <input class="txsr" id="txsr" placeholder="Search protocol, token, hash…" oninput="filterTx(this.value)">
       </div>
       <div style="overflow-x:auto">
-        <table>
-          <thead><tr>
-            <th>Date</th><th>Method</th><th>Protocol</th>
-            <th>Sent</th><th>Received</th>
-            <th>Realised P&L</th><th>Gas (USD)</th><th>Hash</th>
-          </tr></thead>
-          <tbody id="txb"></tbody>
-        </table>
+        <table><thead><tr>
+          <th>Date</th><th>Type</th><th>Asset</th>
+          <th>From</th><th>To</th><th>Amount</th>
+          <th>USD value</th><th>Hash</th>
+        </tr></thead><tbody id="txbd"></tbody></table>
       </div>
     </div>
   </div>
-
-  <!-- TOKEN FLOWS TAB -->
-  <div id="tab-tokens" class="tc">
+  <div id="tab-fl" class="tc">
     <div style="margin-bottom:1.25rem">
       <div style="font-size:1rem;font-weight:700">Token flows</div>
-      <div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);margin-top:2px">Net received / sent · exact on-chain amounts</div>
+      <div style="font-size:12px;color:var(--muted);font-family:var(--fm);margin-top:2px">Net received / sent — last 90 days</div>
     </div>
-    <div class="tgrid" id="tg"></div>
+    <div class="tgrd" id="tfl"></div>
   </div>
-
+</div>
 </div>
 
 <script>
-// ─── LOGO URLS ─────────────────────────────────────────────────────────────────
-// Sourced from Blockscout token contract metadata (icon_url field)
-// Proxied via wsrv.nl to bypass CoinGecko CORS / referrer restrictions
+// ── Config ──────────────────────────────────────────────────────────────────
+const LLAMA = 'https://coins.llama.fi';
+const ALCHEMY_KEY = 'TW5j_xvF4P5kfCbY6Y0Vq';
+const ALCHEMY_URL = () => `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`;
+
+// Known vault contracts — detect open positions from holdings
+const VAULTS = {
+  '0xbeeff047c03714965a54b671a37c18bef6b96210': { name:'Steakhouse Morpho', type:'Yield farming', decimals:6, underlying:'USDC' },
+  '0x273da948aca9261043fbdb2a857bc255ecc29012': { name:'Fluid Lite USD',    type:'Yield vault',  decimals:6, underlying:'USDC' },
+};
+
+// Known protocol router addresses → display name
+const PROTO = {
+  '0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2': 'Aave V3',
+  '0xae05cd22df81871bc7cc2a04becfb516bfe332c8': 'Aave Horizon RWA',
+  '0x3ef3d8ba38ebe18db133cec108f4d14ce00dd9ae': 'Morpho distributor',
+  '0x273da948aca9261043fbdb2a857bc255ecc29012': 'Fluid Lite USD',
+  '0x6566194141eefa99af43bb5aa71460ca2dc90245': 'Steakhouse Morpho',
+  '0xbeeff047c03714965a54b671a37c18bef6b96210': 'Steakhouse Morpho',
+  '0x111111125421ca6dc452d289314280a0f8842a65': '1inch',
+  '0x1111111254eeb25477b68fb85ed929f73a960582': '1inch v5',
+  '0xe592427a0aece92de3edee1f18e0157c05861564': 'Uniswap v3',
+  '0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45': 'Uniswap v3',
+  '0xdef1c0ded9bec7f1a1670819833240f027b25eff': '0x Exchange',
+};
+
+// Logos
 const IMG = {
   morpho:  'https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F29837%2Fsmall%2FMorpho-token-icon.png%3F1726771230&w=80&h=80',
   aave:    'https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F12645%2Fsmall%2FAAVE.png%3F1696512452&w=80&h=80',
@@ -264,260 +291,489 @@ const IMG = {
   oneinch: 'https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F13469%2Fsmall%2F1inch-logo.jpeg%3F1759404663&w=80&h=80',
   dam:     'https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F68267%2Fsmall%2Fdam.png%3F1755228740&w=80&h=80',
   usdc:    'https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F6319%2Fsmall%2FUSDC.png%3F1769615602&w=80&h=80',
-  gnosis:  'https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F11289%2Fsmall%2FGnosisChain_Logomark_Green_on_White.png%3F1698238081&w=80&h=80',
+  eth:     'https://wsrv.nl/?url=https%3A%2F%2Fassets.coingecko.com%2Fcoins%2Fimages%2F279%2Fsmall%2Fethereum.png%3F1696501628&w=80&h=80',
 };
+function lgo(n) {
+  const l = (n || '').toLowerCase();
+  if (l.includes('morpho') || l.includes('steakhouse') || l.includes('bbq')) return IMG.morpho;
+  if (l.includes('aave')) return IMG.aave;
+  if (l.includes('fluid')) return IMG.fluid;
+  if (l.includes('1inch') || l.includes('inch')) return IMG.oneinch;
+  if (l.includes('dam') || l.includes('reservoir')) return IMG.dam;
+  if (l.includes('usdc')) return IMG.usdc;
+  if (l.includes('eth') || l === 'eth') return IMG.eth;
+  return null;
+}
 
-// ─── TRANSACTIONS ──────────────────────────────────────────────────────────────
-// All amounts: USDC 6 decimals, tokens use correct decimals
-// Gas: fee_wei / 1e18 * eth_price_at_block (verified: Fluid deposit = $0.0183 ✓)
-// Swap P&L: exact USDC received from token_transfer log (not estimated from price)
-const TXS = [
-  { date:'2026-02-18', method:'withdraw',     ptype:'withdraw', proto:'Aave Horizon RWA',   img:IMG.aave,
-    sent:'10,000.008580 aHorRwaUSDC', recv:'10,015.440542 USDC',    pnl:15.431962, gas:0.0167 },
-  { date:'2026-02-18', method:'withdraw',     ptype:'withdraw', proto:'Aave V3',             img:IMG.aave,
-    sent:'20,000.314771 aUSDC',       recv:'20,036.945532 USDC',    pnl:36.630761, gas:0.0148 },
-  { date:'2026-02-18', method:'deposit',      ptype:'deposit',  proto:'Steakhouse (Morpho)', img:IMG.morpho,
-    sent:'20,000.000000 USDC',        recv:'19,940.172050 bbqSUSDC', pnl:0,        gas:0.0679 },
-  { date:'2026-02-26', method:'claim',        ptype:'claim',    proto:'Morpho distributor',  img:IMG.morpho,
-    sent:'—',                         recv:'868,924.845204 DAM + 1.315212 MORPHO', pnl:null, gas:0.0641 },
-  { date:'2026-02-26', method:'swap',         ptype:'swap',     proto:'1inch',               img:IMG.oneinch,
-    sent:'868,924.845204 DAM',        recv:'18.346340 USDC',        pnl:18.346340, gas:0.0579 },
-  { date:'2026-02-28', method:'transfer',     ptype:'other',    proto:'Gnosis Safe',         img:IMG.gnosis,
-    sent:'—',                         recv:'10,000.000000 USDC',    pnl:null,      gas:0 },
-  { date:'2026-03-07', method:'approve',      ptype:'approve',  proto:'DAM token',           img:IMG.dam,
-    sent:'—',                         recv:'—',                     pnl:null,      gas:0.0086 },
-  { date:'2026-03-07', method:'claim',        ptype:'claim',    proto:'Morpho distributor',  img:IMG.morpho,
-    sent:'—',                         recv:'591,326.240352 DAM + 0.873521 MORPHO', pnl:null, gas:0.0303 },
-  { date:'2026-03-07', method:'swap',         ptype:'swap',     proto:'1inch',               img:IMG.oneinch,
-    sent:'591,326.240352 DAM',        recv:'18.597667 USDC',        pnl:18.597667, gas:0.0345 },
-  { date:'2026-03-07', method:'swap (limit)', ptype:'swap',     proto:'1inch order book',    img:IMG.oneinch,
-    sent:'2.188733 MORPHO',           recv:'3.797382 USDC',         pnl:3.797382,  gas:0 },
-  { date:'2026-03-07', method:'approve',      ptype:'approve',  proto:'Morpho token',        img:IMG.morpho,
-    sent:'—',                         recv:'—',                     pnl:null,      gas:0.0029 },
-  { date:'2026-03-20', method:'approve',      ptype:'approve',  proto:'DAM token',           img:IMG.dam,
-    sent:'—',                         recv:'—',                     pnl:null,      gas:0.0052 },
-  { date:'2026-03-20', method:'claim',        ptype:'claim',    proto:'Morpho distributor',  img:IMG.morpho,
-    sent:'—',                         recv:'584,630.371590 DAM + 1.134273 MORPHO', pnl:null, gas:0.0209 },
-  { date:'2026-03-20', method:'swap (limit)', ptype:'swap',     proto:'1inch order book',    img:IMG.oneinch,
-    sent:'584,630.371590 DAM',        recv:'15.660863 USDC',        pnl:15.660863, gas:0 },
-  { date:'2026-03-20', method:'approve',      ptype:'approve',  proto:'USDC (Fluid)',         img:IMG.usdc,
-    sent:'—',                         recv:'—',                     pnl:null,      gas:0.0061 },
-  { date:'2026-03-20', method:'deposit',      ptype:'deposit',  proto:'Fluid Lite USD',      img:IMG.fluid,
-    sent:'10,040.741489 USDC',        recv:'9,981.447918 fLiteUSD',  pnl:0,        gas:0.0183 },
-];
-// Attach hashes
-const HASHES = [
-  '0x303dc4cb9435b271b79780bc6a8ca06b6992b7bc6611b35438f3cf05bc294390',
-  '0x1304d243434260730f997fc30d8e2cd5e9992d6dfc8a4e81d55054ae04f0a1f0',
-  '0x2a02396101975fb77fba69aea96444f58f4b4e78d158698ba39cf89941779f5b',
-  '0x69749643080631479663e02a34672e2b7dc74036a0f05caaac89819142183513',
-  '0x579ee0cb5c64c376023ca6430d08b88eeb9d1db132a04682c5347e45d9f00c6c',
-  '0x85b5dfa9ef7848079503ebdd0d2ae440c1d01cc19717ba2c0ba784742cb23400',
-  '0x9cb8c40d25f430fc23bd4e65ffebef563326e26e448b53822d95d34006f16a4e',
-  '0xdf2563485c4743c38893b95750365a9f934f1d4cd9c2fc34bb7b925bddca692e',
-  '0x5eba5e10ae4a171ddf92226708ee65f44b04805863ac5cc39a1f294aaef234ed',
-  '0x9118d3c47ebc99a51812a7f61d8ad0eb43acc00005295ca40eadafd81a1743c0',
-  '0x7f4d75277a8c0df4b6e17ababada3306016400a2f21d04cd9750ec5ddbb35006',
-  '0xb4b48833f7e30da43b54adcdf8a244d7fcd4d9c34c82abd520232ae023616b7e',
-  '0xbf45c29d602750201f123e901fb48165e9680a764c136e6778ee190d94d44a41',
-  '0x3f495273ebb3fdaf7ebca037f78baa65f5818f2b967a386c72897183c60750bc',
-  '0x56b05b620df4a00b541b80314cba40296ba4bf36271c5ad461c410df6dab0a7f',
-  '0x3395a354ff1c6e51413ce7e944cee036d23b6e9bd152951a80539087cbe06ad2',
-];
-TXS.forEach((t,i) => t.hash = HASHES[i]);
+// ── State ────────────────────────────────────────────────────────────────────
+let curAddr = null, allTxs = [];
 
-// ─── STRATEGIES ───────────────────────────────────────────────────────────────
-const CURRENT = [
-  {
-    id:'morpho', img:IMG.morpho, open:true,
-    name:'Steakhouse / Morpho', type:'Yield farming', chain:'ETH',
-    deployed:20000, currentValue:20051.890375,
-    desc:'$20,000 USDC in Steakhouse/Morpho vault (bbqSUDCreservoir). Earning DAM + MORPHO rewards, harvested 3× over 30 days. Principal still deployed.',
-    // Vault yield (from convertToAssets live call): $51.890375
-    // Rewards sold: $18.346340 + $18.597667 + $3.797382 + $15.660863 = $56.402252
-    gross: 51.890375 + 56.402252,
-    gas: 0.0679+0.0641+0.0579+0.0086+0.0303+0.0345+0+0.0029+0.0052+0.0209+0,
-    bars:[0,5,10,15,18,8,19,4,52,4,16,0], txCount:9,
-    rows:[
-      {l:'Current vault value',           v:'$20,051.890375', c:'g'},
-      {l:'Vault accrued yield',            v:'+$51.890375',   c:'g'},
-      {l:'Rewards harvested (3 claims)',   v:'+$56.402252',   c:'g'},
-      {l:'MORPHO still held',              v:'1.134273 (~$1.97)', c:'a'},
-    ],
-  },
-  {
-    id:'fluid', img:IMG.fluid, open:true,
-    name:'Fluid Lite USD Vault', type:'Yield vault', chain:'ETH',
-    deployed:10040.741489, currentValue:10040.906407,
-    desc:'10,040.741489 USDC deposited on Mar 20. Position just opened — yield beginning to accrue.',
-    gross:0.164918, gas:0.0061+0.0183,
-    bars:[0,0,0,0,0,0,0,0,0,0,0,0], txCount:2,
-    rows:[
-      {l:'fLiteUSD shares held', v:'9,981.447918',   c:''},
-      {l:'Current USDC value',   v:'$10,040.906407', c:'g'},
-      {l:'Accrued yield',        v:'+$0.164918',     c:'g'},
-    ],
-  },
-];
-const PAST = [
-  {
-    id:'aavev3', img:IMG.aave, open:false,
-    name:'Aave V3 USDC supply', type:'Lending', chain:'ETH',
-    deployed:20000, currentValue:null,
-    desc:'Supplied USDC to Aave V3. Full position withdrawn Feb 18.',
-    gross:36.630761, gas:0.0148, bars:[3,3,3,3,3,3,4,4,4,4,4,4], txCount:1,
-    rows:[
-      {l:'aUSDC burned',   v:'20,000.314771', c:''},
-      {l:'USDC received',  v:'20,036.945532', c:''},
-      {l:'Yield realised', v:'+$36.630761',   c:'g'},
-    ],
-  },
-  {
-    id:'aavehor', img:IMG.aave, open:false,
-    name:'Aave Horizon RWA', type:'RWA Lending', chain:'ETH',
-    deployed:10000, currentValue:null,
-    desc:'Supplied USDC to Aave Horizon RWA pool. Full position withdrawn Feb 18.',
-    gross:15.431962, gas:0.0167, bars:[1,1,1,1,1,1,2,2,2,2,2,2], txCount:1,
-    rows:[
-      {l:'aHorRwaUSDC burned', v:'10,000.008580', c:''},
-      {l:'USDC received',      v:'10,015.440542', c:''},
-      {l:'Yield realised',     v:'+$15.431962',   c:'g'},
-    ],
-  },
-];
-[...CURRENT,...PAST].forEach(s => s.net = s.gross - s.gas);
+// ── Alchemy API ──────────────────────────────────────────────────────────────
+async function alchemyRpc(method, params) {
+  let r;
+  try {
+    r = await fetch(ALCHEMY_URL(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
+    });
+  } catch (netErr) {
+    // Network-level failure — most common causes:
+    // 1. Running inside Claude.ai preview iframe (blocks all external fetches)
+    // 2. Alchemy app has domain restrictions — fix: dashboard → app → Security → clear allowed domains
+    // 3. Ad blocker / browser extension blocking the request
+    throw new Error(
+      'Network error reaching Alchemy. Possible causes:\n' +
+      '• This preview iframe blocks all external requests — open the app from GitHub Pages instead\n' +
+      '• Your Alchemy app has domain restrictions — go to dashboard → app → Security → remove allowed domains\n' +
+      '• A browser extension is blocking the request\n\nOriginal error: ' + netErr.message
+    );
+  }
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`Alchemy HTTP ${r.status}: ${txt.slice(0, 200)}`);
+  }
+  const d = await r.json();
+  if (d.error) throw new Error(`Alchemy RPC error: ${d.error.message} (code ${d.error.code})`);
+  return d.result;
+}
 
-const TOKENS = [
-  { sym:'USDC', name:'USD Coin', img:IMG.usdc,
-    netUSD:(20036.945532+10015.440542+18.346340+18.597667+3.797382+15.660863+10000)-(20000+10040.741489),
-    note:'Net after all deposits & withdrawals' },
-  { sym:'MORPHO', name:'Morpho', img:IMG.morpho,
-    netUSD:(3.323006-2.188733)*1.74, note:'1.134273 still held @ ~$1.74' },
-  { sym:'DAM', name:'Reservoir (DAM)', img:IMG.dam,
-    netUSD:0, note:'2,044,881 total claimed; all sold' },
-  { sym:'fLiteUSD', name:'Fluid Lite USD', img:IMG.fluid,
-    netUSD:10040.906407, note:'9,981.447918 shares · live position' },
-  { sym:'bbqSUDCreservoir', name:'Steakhouse Morpho', img:IMG.morpho,
-    netUSD:20051.890375, note:'19,940.172050 shares · live position' },
-];
+// Get all asset transfers (ERC-20 + ETH) for an address
+async function getTransfers(address, direction) {
+  const params = {
+    fromBlock: '0x0', toBlock: 'latest',
+    withMetadata: true, excludeZeroValue: true,
+    maxCount: '0x3e8', // 1000
+    category: ['external', 'erc20'],
+  };
+  if (direction === 'from') params.fromAddress = address;
+  else params.toAddress = address;
 
-// ─── Render ───────────────────────────────────────────────────────────────────
-window.onload = () => {
-  document.getElementById('sg-current').innerHTML = CURRENT.map(cardHTML).join('');
-  document.getElementById('sg-past').innerHTML    = PAST.map(cardHTML).join('');
-  rT(TXS); rTok();
-};
+  const results = [];
+  let pageKey = null;
+  do {
+    if (pageKey) params.pageKey = pageKey;
+    const res = await alchemyRpc('alchemy_getAssetTransfers', [params]);
+    results.push(...(res.transfers || []));
+    pageKey = res.pageKey;
+    if (results.length > 2000) break; // safety limit
+  } while (pageKey);
+  return results;
+}
 
-function cardHTML(s) {
-  const c=s.net>0?'g':s.net<0?'r':'n', sign=s.net>0?'+':'';
-  const roi=s.deployed>0?(s.net/s.deployed*100).toFixed(4)+'%':'—';
-  const bmax=Math.max(...s.bars,1);
-  const bars=s.bars.map(v=>`<div class="bar ${v>0?'g':'n'}" style="height:${Math.max(3,Math.round(v/bmax*26))}px"></div>`).join('');
-  const extraRows=s.rows.map(e=>`<div class="sr"><div class="sr-l">${e.l}</div><div class="sr-v ${e.c}">${e.v}</div></div>`).join('');
-  const live=s.open?`<div class="live-badge"><span class="blink"></span>live position</div><br>`:'';
-  return `<div class="card ${s.open?'':'past'}" onclick="focusS('${s.id}')">
-    <div class="card-head">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="proto-logo">
-          <img src="${s.img}" alt="${s.name[0]}"
-               onerror="this.style.display='none';this.parentElement.textContent='${s.name[0]}'">
-        </div>
-        <div><div class="sname">${s.name}</div><div class="stype">${s.type}</div></div>
-      </div>
-      <div style="text-align:right">
-        <div class="spnl ${c}">${sign}${fU(s.net)}</div>
-        <div class="spnl-l">net P&amp;L</div>
-      </div>
-    </div>
-    ${live}
-    <div class="sdesc">${s.desc}</div>
-    <div class="bars">${bars}</div>
-    <div class="divider"></div>
-    ${extraRows}
-    <div class="divider"></div>
-    <div class="sr"><div class="sr-l">Capital deployed</div><div class="sr-v">${fU(s.deployed)}</div></div>
-    <div class="sr"><div class="sr-l">Gross P&amp;L</div><div class="sr-v g">+${fU(s.gross)}</div></div>
-    <div class="sr"><div class="sr-l">Gas paid</div><div class="sr-v">$${s.gas.toFixed(4)}</div></div>
-    <div class="sr"><div class="sr-l">ROI on deployed</div><div class="sr-v ${c}">${roi}</div></div>
-    <div class="sr"><div class="sr-l">Txs</div><div class="sr-v">${s.txCount}</div></div>
-    <div class="sr"><div class="sr-l">Status</div><div style="display:flex;gap:5px">
-      <span class="cbadge ${s.open?'open':'closed'}">${s.open?'open':'closed'}</span>
-      <span class="cbadge chain">ETH</span>
+// eth_call — call convertToAssets on vault contracts
+async function convertToAssets(vaultAddr, sharesHex) {
+  // convertToAssets(uint256) selector = 0x07a2d13a
+  const sharesBI = BigInt(sharesHex);
+  const sharesHexPadded = sharesBI.toString(16).padStart(64, '0');
+  const data = '0x07a2d13a' + sharesHexPadded;
+  const result = await alchemyRpc('eth_call', [{ to: vaultAddr, data }, 'latest']);
+  return result ? BigInt(result) : null;
+}
+
+// Get ETH balance
+async function getEthBalance(address) {
+  const r = await alchemyRpc('eth_getBalance', [address, 'latest']);
+  return r ? Number(BigInt(r)) / 1e18 : 0;
+}
+
+// ── DeFiLlama prices ─────────────────────────────────────────────────────────
+async function llamaPrices(addrs) {
+  if (!addrs.length) return {};
+  try {
+    const ids = [...new Set(addrs)].map(a => 'ethereum:' + a).join(',');
+    const r = await fetch(`${LLAMA}/prices/current/${ids}?searchWidth=12h`);
+    if (!r.ok) return {};
+    const d = await r.json();
+    const out = {};
+    for (const [k, v] of Object.entries(d.coins || {}))
+      out[k.replace('ethereum:', '').toLowerCase()] = v.price || 0;
+    return out;
+  } catch { return {}; }
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+function openModal() {
+  g('ov').classList.remove('h');
+  setTimeout(() => {
+    const p = window.ethereum;
+    const d = g('wextd'), b = g('wextb');
+    if (!p) { d.textContent = 'No wallet detected'; b.textContent = 'not found'; b.className = 'wbg wno'; }
+    else { d.textContent = (p.isRabby ? 'Rabby' : 'MetaMask') + ' — click to connect'; b.textContent = 'ready'; b.className = 'wbg wok'; }
+  }, 150);
+}
+function closeModal() { g('ov').classList.add('h'); }
+async function connExt() {
+  if (!window.ethereum) { alert('No wallet detected. Install Rabby or MetaMask.'); return; }
+  closeModal();
+  try {
+    const a = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (a?.[0]) run(a[0]);
+  } catch (e) { if (e.code !== 4001) showErr('Wallet error: ' + e.message); }
+}
+function connManual() {
+  const v = g('ain').value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(v)) { g('aerr').style.display = 'block'; return; }
+  g('aerr').style.display = 'none';
+  closeModal();
+  run(v);
+}
+function doDisc() {
+  curAddr = null; allTxs = [];
+  ['dash', 'erel'].forEach(i => g(i).classList.remove('on'));
+  g('loel').classList.remove('on');
+  g('land').style.display = 'flex';
+  g('btnc').style.display = ''; g('btnd').style.display = 'none';
+  g('cpill').style.display = 'none'; g('wpill').style.display = 'none';
+  g('ain').value = '';
+}
+
+// ── Main pipeline ─────────────────────────────────────────────────────────────
+async function run(address) {
+  curAddr = address;
+  g('land').style.display = 'none'; g('erel').classList.remove('on'); g('dash').classList.remove('on');
+  g('loel').classList.add('on');
+  g('btnc').style.display = 'none'; g('btnd').style.display = '';
+  g('cpill').style.display = 'flex'; g('wpill').style.display = 'flex';
+  g('wsh').textContent = address.slice(0, 6) + '…' + address.slice(-4);
+  setPf(0);
+
+  try {
+    setSub('Fetching transfers from Alchemy…'); setPf(10);
+    const [txsFrom, txsTo] = await Promise.all([
+      getTransfers(address, 'from'),
+      getTransfers(address, 'to'),
+    ]);
+    setPf(35);
+
+    setSub('Fetching ETH balance & token prices…');
+    const ethBal = await getEthBalance(address);
+    setPf(45);
+
+    // Merge and deduplicate transfers
+    const allTransfers = mergeTransfers(address, txsFrom, txsTo);
+
+    // Collect token addresses for price lookup
+    const tokenAddrs = [...new Set(allTransfers.map(t => t.contractAddress?.toLowerCase()).filter(Boolean))];
+    const prices = await llamaPrices([...tokenAddrs, '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']);
+    const ethPrice = prices['0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'] || 2130;
+    setPf(60);
+
+    setSub('Reading vault positions…');
+    // Detect vault holdings from net balance of vault share tokens
+    const vaultPositions = await detectVaultPositions(address, allTransfers, prices, ethPrice);
+    setPf(80);
+
+    setSub('Building dashboard…');
+    const result = build(address, allTransfers, ethBal, ethPrice, prices, vaultPositions);
+    allTxs = result.txs;
+    setPf(100);
+
+    await sleep(250);
+    g('loel').classList.remove('on');
+    render(result, ethPrice);
+
+  } catch (e) {
+    g('loel').classList.remove('on');
+    showErr(e.message || String(e));
+  }
+}
+
+// ── Merge transfers from both directions ──────────────────────────────────────
+function mergeTransfers(address, txsFrom, txsTo) {
+  const seen = new Set();
+  const all = [];
+  const wallet = address.toLowerCase();
+  for (const t of [...txsFrom, ...txsTo]) {
+    // Each transfer may appear in both from and to lists; deduplicate by hash+asset+value
+    const key = `${t.hash}-${t.asset}-${t.value}-${t.from}-${t.to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    all.push(t);
+  }
+  return all.sort((a, b) => new Date(b.metadata?.blockTimestamp || 0) - new Date(a.metadata?.blockTimestamp || 0));
+}
+
+// ── Detect open vault positions ───────────────────────────────────────────────
+async function detectVaultPositions(address, transfers, prices, ethPrice) {
+  const wallet = address.toLowerCase();
+  const vaultPositions = [];
+
+  for (const [vaultAddr, vMeta] of Object.entries(VAULTS)) {
+    // Calculate net shares: received - sent
+    let netShares = BigInt(0);
+    for (const t of transfers) {
+      if ((t.contractAddress || '').toLowerCase() !== vaultAddr) continue;
+      const rawVal = t.rawContract?.value ? BigInt(t.rawContract.value) : BigInt(Math.round((t.value || 0) * 10**18));
+      if ((t.to || '').toLowerCase() === wallet) netShares += rawVal;
+      else if ((t.from || '').toLowerCase() === wallet) netShares -= rawVal;
+    }
+    if (netShares <= BigInt(0)) continue;
+
+    // Call convertToAssets to get current USD value
+    let currentUSD = null;
+    try {
+      const sharesHex = '0x' + netShares.toString(16);
+      const assets = await convertToAssets(vaultAddr, sharesHex);
+      if (assets !== null) currentUSD = Number(assets) / 10**vMeta.decimals;
+    } catch (e) {}
+
+    // Fallback: use net received USDC as deposit estimate
+    let deposited = 0;
+    for (const t of transfers) {
+      const isUsdc = (t.asset || '').toUpperCase() === 'USDC';
+      const toVault = (t.to || '').toLowerCase() === vaultAddr;
+      const fromWallet = (t.from || '').toLowerCase() === wallet;
+      if (isUsdc && toVault && fromWallet) deposited += t.value || 0;
+    }
+
+    vaultPositions.push({
+      addr: vaultAddr,
+      name: vMeta.name,
+      type: vMeta.type,
+      netShares,
+      currentUSD,
+      deposited,
+      yield: currentUSD !== null ? currentUSD - deposited : null,
+    });
+  }
+  return vaultPositions;
+}
+
+// ── Build dashboard data ──────────────────────────────────────────────────────
+function build(address, transfers, ethBal, ethPrice, prices, vaultPositions) {
+  const wallet = address.toLowerCase();
+
+  // Process transfers into display rows
+  const txs = transfers.map(t => {
+    const isOut = (t.from || '').toLowerCase() === wallet;
+    const isIn  = (t.to   || '').toLowerCase() === wallet;
+    const date  = (t.metadata?.blockTimestamp || '').slice(0, 10);
+    const sym   = t.asset || '?';
+    const amount = t.value || 0;
+    const addr  = (t.contractAddress || '').toLowerCase();
+    const price = addr ? (prices[addr] || 0) : ethPrice;
+    const usd   = amount * price;
+    const proto = PROTO[(t.to || '').toLowerCase()] || PROTO[(t.from || '').toLowerCase()] || null;
+
+    // Classify
+    let type = 'transfer';
+    const toL = (t.to || '').toLowerCase();
+    const fromL = (t.from || '').toLowerCase();
+    if (VAULTS[toL] && isOut) type = 'deposit';
+    else if (VAULTS[fromL] && isIn) type = 'withdraw';
+    else if (t.category === 'external' || t.category === 'internal') type = 'eth';
+
+    return {
+      hash: t.hash,
+      date,
+      type,
+      sym,
+      amount,
+      usd,
+      price,
+      contractAddress: addr,
+      from: t.from || '',
+      to:   t.to   || '',
+      isOut,
+      isIn,
+      proto: proto || (isOut ? shortAddr(t.to) : shortAddr(t.from)),
+    };
+  });
+
+  // Token flow map (net USD received vs sent per token)
+  const fmap = {};
+  for (const t of txs) {
+    if (!fmap[t.sym]) fmap[t.sym] = { sym: t.sym, net: 0, addr: t.contractAddress };
+    fmap[t.sym].net += t.isIn ? t.usd : t.isOut ? -t.usd : 0;
+  }
+
+  // Strategy groups from vault positions
+  const current = vaultPositions.map(v => {
+    const related = txs.filter(t =>
+      (t.to || '').toLowerCase() === v.addr ||
+      (t.from || '').toLowerCase() === v.addr
+    );
+    const grossPnl = v.yield || 0;
+    const gasCost  = 0; // gas not available from alchemy_getAssetTransfers
+    return {
+      name: v.name, type: v.type, open: true,
+      dep: v.deposited, cur: v.currentUSD, yld: v.yield,
+      gross: grossPnl, gas: gasCost, net: grossPnl - gasCost,
+      txCount: related.length,
+    };
+  });
+
+  // Past strategies — infer from significant deposit+withdraw cycles to known protocols
+  const pastMap = {};
+  for (const t of txs) {
+    const toL = (t.to || '').toLowerCase();
+    const fromL = (t.from || '').toLowerCase();
+    if (!PROTO[toL] && !PROTO[fromL]) continue;
+    if (VAULTS[toL] || VAULTS[fromL]) continue; // handled as current
+    const key = PROTO[toL] || PROTO[fromL];
+    if (!pastMap[key]) pastMap[key] = { name: key, type: 'DeFi', open: false, inflows: 0, outflows: 0, txs: [] };
+    pastMap[key].txs.push(t);
+    if (t.isIn)  pastMap[key].inflows  += t.usd;
+    if (t.isOut) pastMap[key].outflows += t.usd;
+  }
+  const past = Object.values(pastMap).map(s => ({
+    ...s,
+    gross: s.inflows - s.outflows,
+    gas: 0,
+    net: s.inflows - s.outflows,
+    dep: s.outflows,
+    cur: null, yld: null,
+    txCount: s.txs.length,
+  })).filter(s => Math.abs(s.net) > 0.01 || s.txCount > 0).sort((a, b) => b.net - a.net);
+
+  // Total capital
+  const vaultAddrs = new Set(Object.keys(VAULTS));
+  let cap = ethBal * ethPrice;
+  // Add non-vault ERC-20 holdings (net positive balances)
+  const tokenBals = {};
+  for (const t of txs) {
+    if (!t.contractAddress || vaultAddrs.has(t.contractAddress)) continue;
+    if (!tokenBals[t.sym]) tokenBals[t.sym] = { net: 0, price: t.price, addr: t.contractAddress };
+    tokenBals[t.sym].net += t.isIn ? t.amount : t.isOut ? -t.amount : 0;
+  }
+  for (const tb of Object.values(tokenBals)) {
+    if (tb.net > 0) cap += tb.net * tb.price;
+  }
+  for (const v of vaultPositions) { if (v.currentUSD) cap += v.currentUSD; }
+
+  const totalPnl = [...current, ...past].reduce((s, x) => s + x.net, 0);
+  const totalGas = 0; // alchemy_getAssetTransfers doesn't include gas data
+  const unr = current.reduce((s, x) => s + (x.yld || 0), 0);
+  const flows = Object.values(fmap).filter(f => Math.abs(f.net) > 0.01).sort((a, b) => b.net - a.net);
+
+  // Tokens held for strip
+  const tokensHeld = Object.values(tokenBals)
+    .filter(t => t.net > 0.0001 && t.net * t.price > 0.01)
+    .sort((a, b) => b.net * b.price - a.net * a.price)
+    .slice(0, 5);
+
+  return { txs, current, past, cap, totalPnl, totalGas, unr, flows, ethBal, ethPrice, tokensHeld, tokenBals };
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render(d, ethPrice) {
+  g('dash').classList.add('on');
+  g('d-addr').textContent = curAddr;
+  g('d-cap').textContent = fU(d.cap);
+  const pe = g('d-pnl'); pe.textContent = (d.totalPnl >= 0 ? '+' : '') + fU(d.totalPnl); pe.className = 'sv ' + (d.totalPnl >= 0 ? 'g' : 'r');
+  g('d-pnls').textContent = 'realised + vault yield';
+  const ue = g('d-unr'); ue.textContent = (d.unr >= 0 ? '+' : '') + fU(d.unr); ue.className = 'sv ' + (d.unr >= 0 ? 'g' : 'r');
+  g('d-gas').textContent = 'N/A';
+  g('d-gass').textContent = d.txs.length + ' transfers · last 90d';
+
+  // Token strip
+  const strip = g('tstrip'); strip.innerHTML = '';
+  if (d.ethBal > 0.0001) {
+    const li = lgo('eth'); const img = li ? `<img class="tlo" src="${li}" onerror="this.style.display='none'">` : '';
+    strip.innerHTML += `<div class="ti"><div class="tl">Tokens in wallet</div><div class="tv">${img}<span>${d.ethBal.toFixed(4)} ETH</span></div></div>`;
+  }
+  for (const tb of d.tokensHeld) {
+    const li = lgo(tb.addr) || lgo(''); const img = li ? `<img class="tlo" src="${li}" onerror="this.style.display='none'">` : '';
+    strip.innerHTML += `<div class="ti"><div class="tl">Tokens in wallet</div><div class="tv">${img}<span>${fU6(tb.net)} ${Object.entries(d.tokenBals).find(([k,v])=>v===tb)?.[0] || '?'}</span></div></div>`;
+  }
+
+  g('ccu').textContent = d.current.length;
+  g('cpa').textContent = d.past.length;
+  g('scu').innerHTML = d.current.length ? d.current.map(cH).join('') : '<div class="emp">No open vault positions detected.</div>';
+  g('spa').innerHTML = d.past.length ? d.past.map(cH).join('') : '<div class="emp">No past strategy activity found in the last 90 days.</div>';
+
+  renderTxs(allTxs);
+
+  g('tfl').innerHTML = d.flows.length ? d.flows.map(f => {
+    const col = f.net > 0 ? 'var(--green)' : f.net < 0 ? 'var(--red)' : 'var(--muted2)';
+    const li = lgo(f.sym) || lgo(f.addr || '');
+    const le = li ? `<img src="${li}" onerror="this.style.display='none'">` : f.sym[0];
+    return `<div class="tcd"><div class="tlb">${le}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">${f.sym}</div></div><div style="font-size:14px;font-weight:700;color:${col};margin-left:12px">${f.net >= 0 ? '+' : ''}${fU(Math.abs(f.net))}</div></div>`;
+  }).join('') : '<div class="emp">No token flows found.</div>';
+}
+
+function cH(s) {
+  const c = s.net > 0 ? 'g' : s.net < 0 ? 'r' : 'n', sign = s.net > 0 ? '+' : '';
+  const roi = s.dep > 0 ? (s.net / s.dep * 100).toFixed(4) + '%' : '—';
+  const li = lgo(s.name); const le = li ? `<img src="${li}" onerror="this.style.display='none';this.parentElement.textContent='${s.name[0]}'">` : s.name[0];
+  const live = s.open ? `<div class="livb"><span class="blk"></span>live position</div><br>` : '';
+  const rows = [];
+  if (s.cur != null)  rows.push({ l: 'Current value', v: '$' + s.cur.toFixed(2), c: 'g' });
+  if (s.yld != null)  rows.push({ l: 'Vault yield', v: (s.yld >= 0 ? '+' : '') + '$' + Math.abs(s.yld).toFixed(6), c: 'g' });
+  if (s.dep != null && s.dep > 0) rows.push({ l: 'Deposited', v: '$' + s.dep.toFixed(2), c: '' });
+  if (!s.open && s.inflows)  rows.push({ l: 'Total inflows', v: fU(s.inflows), c: 'g' });
+  if (!s.open && s.outflows) rows.push({ l: 'Total outflows', v: fU(s.outflows), c: '' });
+  return `<div class="card ${s.open ? '' : 'past'}">
+    <div class="ch">
+      <div style="display:flex;align-items:center;gap:10px"><div class="clo">${le}</div><div><div class="cn2">${s.name}</div><div class="ct">${s.type}</div></div></div>
+      <div style="text-align:right"><div class="cp ${c}">${sign}${fU(s.net)}</div><div class="cpl">net P&amp;L</div></div>
+    </div>${live}
+    ${rows.map(r => `<div class="row"><div class="rl">${r.l}</div><div class="rv ${r.c}">${r.v}</div></div>`).join('')}
+    ${rows.length ? '<div class="dv"></div>' : ''}
+    <div class="row"><div class="rl">Gross P&amp;L</div><div class="rv g">${s.gross >= 0 ? '+' : ''}${fU(s.gross)}</div></div>
+    <div class="row"><div class="rl">ROI</div><div class="rv ${c}">${roi}</div></div>
+    <div class="row"><div class="rl">Transfers</div><div class="rv">${s.txCount}</div></div>
+    <div class="row"><div class="rl">Status</div><div style="display:flex;gap:5px">
+      <span class="cbdg ${s.open ? 'op' : 'cl'}">${s.open ? 'open' : 'closed'}</span>
+      <span class="cbdg ch2">ETH</span>
     </div></div>
   </div>`;
 }
 
-function rT(txs) {
-  document.getElementById('txcnt').textContent = txs.length+' txs';
-  document.getElementById('txb').innerHTML = !txs.length
-    ? `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted)">No results.</td></tr>`
-    : txs.map(t => {
-        const hp=t.pnl!==null&&t.pnl!==0;
-        const ps=hp?(t.pnl>0?'+':'')+fU(t.pnl):(t.pnl===0?'$0.000000':'—');
-        const pc=hp&&t.pnl>0?'pg':hp&&t.pnl<0?'pr':'pn';
-        const gs=t.gas>0
-          ?`<span style="color:var(--red);font-family:var(--font-mono);font-size:12px">$${t.gas.toFixed(4)}</span>`
-          :`<span style="color:var(--muted);font-size:12px">${t.ptype==='swap'&&t.gas===0?'$0 (filler)':'$0.0000'}</span>`;
-        const li=`<img src="${t.img}" style="width:16px;height:16px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:5px" onerror="this.style.display='none'">`;
-        return `<tr>
-          <td style="font-size:12px;color:var(--muted);white-space:nowrap">${t.date}</td>
-          <td><span class="badge ${t.ptype}">${t.method}</span></td>
-          <td style="font-size:12px;color:var(--muted2);white-space:nowrap">${li}${t.proto}</td>
-          <td style="font-size:12px;font-family:var(--font-mono);color:var(--muted2)">${t.sent}</td>
-          <td style="font-size:12px;font-family:var(--font-mono);color:var(--muted2)">${t.recv}</td>
-          <td class="${pc}" style="white-space:nowrap;font-size:13px">${ps}</td>
-          <td>${gs}</td>
-          <td><a class="txh" href="https://etherscan.io/tx/${t.hash}" target="_blank">${t.hash.slice(0,10)}…</a></td>
-        </tr>`;
-      }).join('');
+function renderTxs(txs) {
+  g('txlbl').textContent = txs.length + ' transfers';
+  g('txbd').innerHTML = !txs.length
+    ? `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted)">No transfers found.</td></tr>`
+    : txs.slice(0, 200).map(t => {
+      const col = t.isIn ? 'var(--green)' : 'var(--red)';
+      const dir = t.isIn ? '↓ IN' : '↑ OUT';
+      const li = lgo(t.sym); const img = li ? `<img src="${li}" style="width:16px;height:16px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:5px" onerror="this.style.display='none'">` : '';
+      return `<tr>
+        <td style="font-size:12px;color:var(--muted);white-space:nowrap">${t.date}</td>
+        <td><span class="bdg ${t.type === 'deposit' ? 'deposit' : t.type === 'withdraw' ? 'withdraw' : 'other'}">${t.type}</span></td>
+        <td style="font-size:12px;color:var(--muted2);white-space:nowrap">${img}${t.sym}</td>
+        <td style="font-size:12px;font-family:var(--fm);color:var(--muted2)">${shortAddr(t.from)}</td>
+        <td style="font-size:12px;font-family:var(--fm);color:var(--muted2)">${shortAddr(t.to)}</td>
+        <td style="font-size:12px;font-family:var(--fm);color:${col}">${t.isIn ? '+' : '-'}${fU6(t.amount)} ${t.sym}</td>
+        <td style="font-size:12px;font-family:var(--fm);color:var(--muted2)">${fU(t.usd)}</td>
+        <td><a class="txlnk" href="https://etherscan.io/tx/${t.hash}" target="_blank">${t.hash.slice(0, 10)}…</a></td>
+      </tr>`;
+    }).join('');
 }
 
-function rTok() {
-  document.getElementById('tg').innerHTML = TOKENS.map(t => {
-    const col=t.netUSD>0?'var(--green)':t.netUSD<0?'var(--red)':'var(--muted2)';
-    const sign=t.netUSD>0?'+':'';
-    return `<div class="tcard">
-      <div class="tlogo">
-        <img src="${t.img}" alt="${t.sym[0]}" onerror="this.style.display='none';this.parentElement.textContent='${t.sym[0]}'">
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700">${t.name}</div>
-        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">${t.sym}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px">${t.note}</div>
-      </div>
-      <div style="font-size:14px;font-weight:700;color:${col};text-align:right;flex-shrink:0;margin-left:12px">${sign}${fU(Math.abs(t.netUSD))}</div>
-    </div>`;
-  }).join('');
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function stab(id, b) { document.querySelectorAll('.tab').forEach(x => x.classList.remove('on')); document.querySelectorAll('.tc').forEach(x => x.classList.remove('on')); b.classList.add('on'); g('tab-' + id).classList.add('on'); }
+function sit(id, b) { document.querySelectorAll('.it').forEach(x => x.classList.remove('on')); document.querySelectorAll('.ip').forEach(x => x.classList.remove('on')); b.classList.add('on'); g('ip-' + id).classList.add('on'); }
+function filterTx(q) { const l = q.toLowerCase(); renderTxs(l ? allTxs.filter(t => t.sym.toLowerCase().includes(l) || t.hash.includes(l) || t.proto.toLowerCase().includes(l) || t.from.toLowerCase().includes(l) || t.to.toLowerCase().includes(l)) : allTxs); }
+function showErr(m) { g('land').style.display = 'none'; g('erel').classList.add('on'); g('emsg').textContent = m; }
+function setPf(p) { g('pf').style.width = p + '%'; }
+function setSub(t) { g('lsub').textContent = t; }
+function shortAddr(a) { return a ? a.slice(0, 6) + '…' + a.slice(-4) : '—'; }
+function g(id) { return document.getElementById(id); }
+function fU(n) { const a = Math.abs(n); if (a >= 1000) return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); if (a >= 0.01) return '$' + n.toFixed(4); return '$' + n.toFixed(6); }
+function fU6(n) { const a = Math.abs(n); if (a >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return n.toFixed(4); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Connection test — runs on load ───────────────────────────────────────────
+async function testConnection() {
+  const badge = g('conn-badge');
+  if (!badge) return;
+  try {
+    const result = await alchemyRpc('eth_blockNumber', []);
+    if (result) {
+      badge.textContent = '✓ Alchemy connected';
+      badge.style.color = 'var(--green)';
+    }
+  } catch (e) {
+    badge.textContent = '✗ Alchemy unreachable — see console for details';
+    badge.style.color = 'var(--red)';
+    console.error('Alchemy connection test failed:', e.message);
+  }
 }
 
-function switchTab(id,btn){
-  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.tc').forEach(c=>c.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('tab-'+id).classList.add('active');
-}
-function switchInner(id,btn){
-  document.querySelectorAll('.itab').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.ipanel').forEach(p=>p.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('ipanel-'+id).classList.add('active');
-}
-function ftx(q){
-  const l=q.toLowerCase();
-  rT(l?TXS.filter(t=>t.proto.toLowerCase().includes(l)||t.method.includes(l)||t.sent.toLowerCase().includes(l)||t.recv.toLowerCase().includes(l)||t.hash.includes(l)):TXS);
-}
-function focusS(id){
-  switchTab('transactions', document.querySelectorAll('.tab')[1]);
-  const m={morpho:'morpho',fluid:'fluid',aavev3:'aave v3',aavehor:'aave hor'};
-  const inp=document.getElementById('txsi');
-  inp.value=m[id]||id; ftx(inp.value);
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-function fU(n){
-  const a=Math.abs(n);
-  if(a>=1000) return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  return'$'+n.toFixed(6);
-}
+// Key is hardcoded — no setup needed
+testConnection();
 </script>
 </body>
 </html>
